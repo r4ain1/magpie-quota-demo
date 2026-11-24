@@ -1,4 +1,4 @@
-import { applyAction } from './model.mjs';
+import { applyAction, dayInShanghai } from './model.mjs';
 
 export const storageKey = 'magpie.quota.demo.v1';
 const hour = 3600000;
@@ -25,6 +25,18 @@ export function readDemo() {
   const state = JSON.parse(saved);
   if (!Array.isArray(state?.seats) || !Array.isArray(state?.entries)) throw Error('本地演示数据无法读取。');
   return state;
+}
+
+export function demoFeed(feed, seats) {
+  const sampleAt = seats.find(seat => seat.id === 'demo-codex')?.observedAt;
+  if (!Number.isFinite(Date.parse(sampleAt))) return feed;
+  const magpie = {
+    status:'ok', lastSuccessAt:sampleAt,
+    hostUsage:{scope:'host', status:'ok', date:dayInShanghai(sampleAt), collectedAt:sampleAt, tokens:18420, requests:12},
+    auxiliaryPools:[{id:'demo-token-pool', label:'示例额度池', service:'WorkBuddy', unit:'tokens', source:'magpie', observedAt:sampleAt,
+      windows:[{name:'赠送 tokens', remaining:72000, capacity:100000, resetAt:null}]}],
+  };
+  return { ...feed, sources:{...feed.sources, magpie} };
 }
 
 export async function saveDemoAction(action, current) {

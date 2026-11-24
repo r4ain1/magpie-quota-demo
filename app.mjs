@@ -1,5 +1,5 @@
-import { getQuota, recommend, recommendationReason, buildReport, isLateReport, observationVersion } from './model.mjs';
-import { readDemo, saveDemoAction, storageKey } from './demo.mjs';
+import { getQuota, recommend, recommendationReason, buildReport, isLateReport, observationVersion, dayInShanghai } from './model.mjs';
+import { readDemo, saveDemoAction, demoFeed, storageKey } from './demo.mjs';
 import { beforeRender, afterRender } from './motion.mjs';
 
 const demo = document.body.dataset.mode === 'demo';
@@ -40,7 +40,17 @@ function date(value, options) {
 const stamp = value => date(value, {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23'});
 const sourceName = seat => seat.source === 'magpie' ? 'Magpie 采集' : '手工维护';
 const unitName = unit => unit === '%' ? '百分点' : unit;
-const page = () => Object.hasOwn(pages, location.hash.slice(1)) ? location.hash.slice(1) : 'overview';
+let pendingRoute;
+let routeIndex = history.state?.magpieRouteIndex ?? 0;
+function markRoute(index) {
+  history.replaceState({ ...history.state, magpieRouteIndex:index }, '');
+  return index;
+}
+if (history.state?.magpieRouteIndex == null) markRoute(routeIndex);
+function page() {
+  const name = (pendingRoute ? new URL(pendingRoute.from).hash : location.hash).slice(1);
+  return Object.hasOwn(pages,name) ? name : 'overview';
+}
 const command = (key, label, extra = '', style = 'btn') => `<button type="button" class="${style}" data-cmd="${key}" ${extra}>${label}</button>`;
 const seatAttr = seat => `data-seat="${esc(seat.id)}"`;
 const tabButton = (cmd, key, label, selected) => command(cmd, esc(label), `data-value="${esc(key)}" aria-pressed="${key === selected}"`, '');
@@ -48,6 +58,7 @@ let state, service, pool, quotaUnit, accountFilter = '', feedTab = 'news', ledge
 const journalKey = `magpie.pending-actions:${new URL('./api/action', document.baseURI).pathname}`;
 let journalOwner;
 let unresolved = [];
+let pendingUndoIds = [];
 let refreshError = '';
 const ledgerPageSize = 30;
 let ledgerLimit = ledgerPageSize;
@@ -56,6 +67,9 @@ let cardLimit = cardPageSize;
 let reportCache;
 let reading = false;
 let lastRead, version = 0, feedVersion = 0, feedError = '', feedLoading = false, busy = false, formContext, timer;
+let suspendedDraft, needsRead = false;
+let renderedDay, midnightTimer;
+const pollPeriod = 45000;
 let published = { news:[], resets:[], guides:[], checkedAt:null };
 let theme = 'system';
 try { theme = localStorage.getItem('magpie.appearance') || 'system'; } catch {}
@@ -99,7 +113,6 @@ async function jsonRequest(path, body) {
     const detail = result?.message || result?.error || (typeof result === 'string' ? result : raw.slice(0, 400));
     const error = Error(typeof detail === 'string' && detail && !detail.trimStart().startsWith('<') ? detail : `请求失败（HTTP ${response.status}）`);
     error.status = response.status;
-    if (rosterUnavailable(error)) showReadError(error);
     throw error;
   }
   if (!result || typeof result !== 'object') throw Error('服务返回的数据格式无效，请重试。');
@@ -113,9 +126,20 @@ function rosterUnavailable(error) {
   return !demo && error.status === 503 && error.message.startsWith('暂时无法核对团队席位名单');
 }
 function showReadError(error) {
+  if (rosterUnavailable(error)) {
+    if (modal.open && journalOwner && formContext?.dirty && ['usage','recharge','observe','add'].includes(formContext.kind)) {
+      const fields = document.createDocumentFragment();
+      fields.append(...dialogBody.childNodes);
+      suspendedDraft = { owner: journalOwner.prefix, context: formContext, fields, pendingRoute:pendingRoute && {from:pendingRoute.from} };
+    }
+  } else if ([401,403,412].includes(error.status)) {
+    suspendedDraft = undefined;
+  }
   ++version;
+  pendingRoute = undefined;
   state = formContext = reportCache = lastRead = null;
   journalOwner = null;
+  pendingUndoIds = [];
   refreshError = '';
   unresolved = [];
   if (modal.open) modal.close();
@@ -125,7 +149,7 @@ function showReadError(error) {
   renderMode();
   const motion = beforeRender();
   main.innerHTML = `<div class="panel"><h1>${error.status === 403 ? '团队访问申请' : '额度台暂时无法读取'}</h1>
-    <p class="error" role="alert">${esc(error.message)}</p>${error.status === 403 && /等待负责人授权/.test(error.message) ? '<p>访问申请已自动登记，负责人批准后即可进入。</p>' : ''}${command('refresh','重新检查')}</div>`;
+    <p class="error" role="alert">${esc(error.message)}</p>${error.status === 403 && /等待负责人授权/.test(error.message) ? '<p>申请已登记。批准后本页会自动打开，也可以立即检查。</p>' : suspendedDraft ? '<p>已暂存本次填写。重新确认同一成员的权限后可继续。</p>' : ''}${command('refresh','重新检查')}</div>`;
   afterRender(motion);
 }
 function journalIdentity(snapshot) {
@@ -137,7 +161,11 @@ function journalIdentity(snapshot) {
 function validPending(action) {
   return typeof action?.id === 'string' && action.id.length > 0 && Object.hasOwn(kinds,action.kind);
 }
-function readJournal(owner) {
+function canRecover(action, snapshot) {
+  return snapshot.role === 'owner' || action.kind === 'add' ||
+    snapshot.seats.some(seat => !seat.archived && seat.id === action.seatId);
+}
+function readJournal(owner, includeHidden = false) {
   const actions = [];
   for (const key of Object.keys(localStorage)) {
     if (!key.startsWith(owner.prefix)) continue;
@@ -145,7 +173,7 @@ function readJournal(owner) {
     if (raw === null) continue;
     const action = JSON.parse(raw);
     if (!validPending(action) || key !== owner.prefix + action.id) throw Error('本机待确认操作格式无效。');
-    actions.push(action);
+    if (includeHidden || canRecover(action,state)) actions.push(action);
   }
   return actions;
 }
@@ -173,17 +201,25 @@ function migrateSession(owner, entries) {
   sessionStorage.setItem(binding,owner.prefix);
   return true;
 }
-function confirmJournal(owner, entries) {
-  unresolved = readJournal(owner);
-  if (!unresolved.length) return 0;
-  const confirmed = new Set(entries.filter(entry => !entry.actor || entry.actor === owner.actor).map(entry => entry.id));
-  const previousCount = unresolved.length;
-  unresolved = unresolved.filter(action => {
-    if (!confirmed.has(action.id)) return true;
-    localStorage.removeItem(owner.prefix + action.id);
+function confirmJournal(owner, snapshot) {
+  const pending = readJournal(owner,true);
+  const confirmed = new Map(snapshot.entries.filter(entry => entry.actor === owner.actor).map(entry => [entry.id,entry]));
+  const undoReceipts = new Set(snapshot.undoReceipts ?? []);
+  const hiddenUndos = new Set();
+  let count = 0;
+  unresolved = pending.filter(action => {
+    const entry = confirmed.get(action.id);
+    if ((entry?.seatId === action.seatId && entry?.kind === action.kind) || (action.kind === 'undo' && undoReceipts.has(action.id))) {
+      localStorage.removeItem(owner.prefix + action.id);
+      count++;
+      return false;
+    }
+    if (canRecover(action,snapshot)) return true;
+    if (action.kind === 'undo' && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/.test(action.id)) hiddenUndos.add(action.id);
     return false;
   });
-  return previousCount - unresolved.length;
+  pendingUndoIds = [...pendingUndoIds.filter(id => hiddenUndos.delete(id)), ...hiddenUndos];
+  return count;
 }
 function describeAction(action) {
   const label = action.label || state.seats.find(seat => seat.id === action.seatId)?.label || action.seatId;
@@ -198,9 +234,7 @@ function recoveryPanel() {
       <div class="row">${command('retry-action','按原编号重试',`data-id="${esc(action.id)}"`)}${command('dismiss-action','结束追踪',`data-id="${esc(action.id)}"`,'ghost')}</div></div>`).join('')}
     ${command('refresh','重新查询流水')}</section>`;
 }
-async function postAction(action, retry) {
-  const owner = journalOwner;
-  if (!owner) throw Error('暂未确认本机成员编号，请重新读取团队台账。');
+async function postAction(action, owner, retry) {
   const key = owner.prefix + action.id;
   const raw = localStorage.getItem(key);
   if (retry && raw === null) throw Error('其他标签页已处理此操作，请重新核查流水。');
@@ -210,27 +244,28 @@ async function postAction(action, retry) {
   unresolved = readJournal(owner);
   let next;
   try {
-    next = validState(await jsonRequest('./api/action',original));
-    if (next.role !== owner.role || (next.actor != null && next.actor !== owner.actor)) {
-      const error = Error('团队身份已变化，请重新读取台账。');
-      if (journalOwner === owner) showReadError(error);
+    next = validState(await jsonRequest('./api/action',{ ...original, expectedActor:owner.actor }));
+    if (journalIdentity(next)?.prefix !== owner.prefix) {
+      const error = Error('无法确认回执的团队身份。请重新读取台账，核对原操作。');
+      if (journalOwner?.prefix === owner.prefix) showReadError(error);
       throw error;
     }
     const receipt = next.receipt;
     if (!(receipt?.id === original.id && receipt.actor === owner.actor) &&
-        !next.entries.some(entry => entry.id === original.id && (!entry.actor || entry.actor === owner.actor))) {
+        !next.entries.some(entry => entry.id === original.id && entry.actor === owner.actor &&
+          entry.seatId === original.seatId && entry.kind === original.kind)) {
       throw Error('尚未取得此操作的回执或流水。');
     }
   } catch (error) {
-    if ([400,401,403,404,405,409,413,415,422].includes(error.status) ||
-        (rosterUnavailable(error) && raw === null)) {
+    if ([400,405,409,413,415,422].includes(error.status) ||
+        (raw === null && ([401,403,404,412].includes(error.status) || rosterUnavailable(error)))) {
       localStorage.removeItem(key);
     }
-    if (journalOwner === owner) unresolved = readJournal(owner);
+    if (journalOwner?.prefix === owner.prefix) unresolved = readJournal(owner);
     throw error;
   }
   localStorage.removeItem(key);
-  if (journalOwner === owner) confirmJournal(owner,next.entries);
+  if (journalOwner?.prefix === owner.prefix) confirmJournal(owner,next);
   return next;
 }
 function href(value) {
@@ -238,7 +273,7 @@ function href(value) {
 }
 function reportInfo(now) {
   const saved = state.report;
-  const day = new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai'}).format(new Date(now));
+  const day = dayInShanghai(now);
   if (!demo && saved?.text && saved.day === day) return { report:saved, label:isLateReport(saved) ? '延时补报' : '准点日报' };
   const minute = now.slice(0,16);
   if (reportCache?.state !== state || reportCache.minute !== minute) reportCache = { state, minute, report:buildReport(state, now) };
@@ -259,7 +294,8 @@ function meter(percent, label) {
   return `<div class="track" role="img" aria-label="${esc(label)}"><span style="width:${value}%"></span></div>`;
 }
 function amountMarkup(quota, unit, className) {
-  return `<span class="${className}">${num(quota.remaining)}<small>${esc(unit)}</small></span>`;
+  const value = num(quota.remaining);
+  return `<span class="${className}${value.length > 7 ? ' wide-number' : ''}">${value}<small>${esc(unit)}</small></span>`;
 }
 function options(values, selected, all) {
   return (all ? `<option value="">${esc(all)}</option>` : '') + values.map(value => `<option value="${esc(value)}" ${value === selected ? 'selected' : ''}>${esc(value)}</option>`).join('');
@@ -302,8 +338,37 @@ function accountCard(seat, now) {
     <h3>${esc(seat.label)}</h3><div class="meta">${sourceName(seat)}${seat.pool ? ` · ${esc(seat.pool)}` : ''}</div>
     <div class="account-value">${amountMarkup(quota,seat.unit,'card-number')}<span class="meta">${esc(quota.windowName || '窗口')} · ${quota.status === 'stale' ? '上次余量' : '剩余'}</span></div>
     ${meter(quota.percent, `可用比例 ${num(quota.percent)}%`)}<div class="meta reset">${icon('clock')} ${quota.resetAt ? `${stamp(quota.resetAt)} 重置` : '重置时间未知'}</div>
+    <div class="meta">采样 ${stamp(seat.observedAt)}</div>
     <div class="card-actions">${command('usage','使用',seatAttr(seat),'')}${command('recharge','充值',seatAttr(seat),'')}
     ${seat.source === 'manual' ? command('observe','核对',seatAttr(seat),'') : ''}${command('details',`窗口 ${icon('arrow')}`,seatAttr(seat),'detail')}</div></article>`;
+}
+function syncOverview(now) {
+  const magpie = state.feed?.sources?.magpie;
+  if (!magpie) return demo ? '' : '<p class="sync-line" role="status">等待主机首次采集 Magpie 额度。</p>';
+  const delayed = Date.parse(now) - Date.parse(magpie.lastSuccessAt) > 10 * 60000;
+  const healthy = ['ok','partial'].includes(magpie.status) && !delayed;
+  const health = magpie.status === 'no_readings' ? '本次采集的席位读数均待复核' :
+    healthy && magpie.status === 'partial' ? '部分席位读数待复核' : healthy ? '主机每 5 分钟同步' :
+    magpie.lastSuccessAt ? '同步延迟，显示上次读数' : '暂未连接 Magpie';
+  const status = `<div class="sync-line${healthy ? '' : ' sync-delayed'}"><span class="sync-dot" aria-hidden="true"></span><strong>${demo ? '模拟同步' : health}</strong><span>最近成功同步 ${stamp(magpie.lastSuccessAt)}</span></div>`;
+  const usage = magpie.hostUsage;
+  const tokens = (magpie.auxiliaryPools || []).filter(seat => seat.unit === 'tokens');
+  if (!tokens.length && !usage) return status;
+  const today = dayInShanghai(now);
+  const measured = usage?.status === 'ok' && usage.date === today && Number.isSafeInteger(usage.tokens) && usage.tokens >= 0 &&
+    Number.isSafeInteger(usage.requests) && usage.requests >= 0 && Number.isFinite(Date.parse(usage.collectedAt));
+  const usageDelayed = measured && Date.parse(now) - Date.parse(usage.collectedAt) > 10 * 60000;
+  const unverified = usage?.status === 'date_mismatch'
+    ? '统计时段与北京时间的今日范围不一致，请维护者核对主机时区与统计起点（北京时间 00:00）。'
+    : '今日用量暂未核实，等待主机同步';
+  const consumed = usage ? `<div class="token-reading"><h3>今日已用</h3><p class="token-number">${measured ? num(usage.tokens) : '—'} <small>tokens</small></p>
+    <p class="meta">${measured ? `本机 Magpie 输入与输出合计，缓存读写另计 · ${num(usage.requests)} 笔请求 · 汇总 ${stamp(usage.collectedAt)}${usageDelayed ? ' · 同步延迟' : ''}` : unverified}</p></div>` : '';
+  const balances = tokens.map(seat => {
+    const quota = getQuota(seat, [], now);
+    return `<div class="token-reading"><h3>${quota.status === 'stale' ? '上次剩余' : '可用余额'}</h3><p class="token-number">${num(quota.remaining)} <small>tokens</small></p>
+      <p class="meta">${esc(seat.service)} · ${esc(seat.label)} · ${esc(seat.windows[0]?.name)} · 采样 ${stamp(seat.observedAt)}${quota.status === 'stale' ? ' · 待更新' : ''}</p></div>`;
+  }).join('');
+  return `${status}<section class="token-panel" aria-label="Token 用量与余额">${consumed}${balances}</section>`;
 }
 function moreCardsLabel(remaining) {
   return `再显示 ${Math.min(cardPageSize,remaining)} 个账户`;
@@ -428,13 +493,25 @@ function ledger() {
 }
 function brief(now) {
   const { report, label } = reportInfo(now);
+  const text = report.text.split('\n').map(line => {
+    const match = /^(.*?)(https:\/\/\S+)\s*$/.exec(line);
+    if (!match || !href(match[2])) return esc(line);
+    return `<a href="${href(match[2])}" target="_blank" rel="noopener noreferrer">${esc(match[1].trim() || '查看原文')} ${icon('external')}</a>`;
+  }).join('\n');
+  const previewNote = state.restrictedReportDay === report.day
+    ? '当前席位范围已变化，此处显示授权范围内的即时读数'
+    : '今日 09:00 正式日报尚未发布';
   return `<article class="panel report"><div class="brief-kicker"><span>${icon('sunrise')}${label}</span><time>${esc(report.day)}</time></div>
-    <pre>${esc(report.text)}</pre><div class="detail-window meta">生成于 ${stamp(report.generatedAt)}（北京时间）${label === '即时预览' ? ' · 今日 09:00 准点日报尚未发布' : ''}</div></article>`;
+    <pre>${text}</pre><div class="detail-window meta">生成于 ${stamp(report.generatedAt)}（北京时间）${label === '即时预览' ? ` · ${previewNote}` : ''}</div></article>`;
 }
 function render() {
   if (!state) return;
   const motion = beforeRender();
   const now = new Date().toISOString();
+  renderedDay = dayInShanghai(now);
+  clearTimeout(midnightTimer);
+  const nextMidnight = Date.parse(`${renderedDay}T00:00:00+08:00`) + 86400000;
+  midnightTimer = setTimeout(render, Math.max(0, nextMidnight - Date.now()));
   const view = page();
   document.title = `${pages[view]} · 余量 / MAGPIE`;
   for (const link of document.querySelectorAll('#nav a')) {
@@ -448,9 +525,9 @@ function render() {
     <span>${demo ? '模拟账户 · 仅本机保存' : '团队共享账户'}</span></div></div>
     ${view === 'overview' ? command('add',`${icon('plus')} 添加账户`) : ''}</div>
     ${recoveryPanel()}${refreshError ? `<p class="error" role="status">${esc(refreshError)}</p>` : ''}
-    ${view === 'overview' ? `<div class="feature-grid">${recommendation(now)}${briefCard(now)}</div>${accounts(now)}${pending()}${sources(true)}${members()}` :
+    ${view === 'overview' ? `${syncOverview(now)}<div class="feature-grid">${recommendation(now)}${briefCard(now)}</div>${accounts(now)}${pending()}${sources(true)}${members()}` :
       view === 'ledger' ? ledger() : view === 'brief' ? brief(now) : sources()}
-    <footer class="page-foot"><span>余量 / MAGPIE · ${modeName()}</span><span>北京时间 · 读取于 ${stamp(lastRead)} ${command('refresh',icon('refresh'),'aria-label="刷新额度台"','ghost')}</span></footer>`;
+    <footer class="page-foot"><span>余量 / MAGPIE · ${modeName()}</span>${!demo ? '<a href="./clients/" class="text-link">下载客户端</a>' : ''}<span>北京时间 · 页面读取 ${stamp(lastRead)} ${command('refresh',icon('refresh'),'aria-label="刷新额度台"','ghost')}</span></footer>`;
   if (active?.id) document.getElementById(active.id)?.focus({preventScroll:true});
   else if (keyboardTarget) [...main.querySelectorAll('[data-cmd]')].find(node => keyboardTarget.every(([key,value]) => node.dataset[key] === value))?.focus({preventScroll:true});
   else if (active?.dataset.entry) [...main.querySelectorAll('[data-entry]')].find(node => node.dataset.entry === active.dataset.entry)?.focus({preventScroll:true});
@@ -476,17 +553,35 @@ function details(seat) {
       ${meter(Number.isFinite(window.remaining) && window.capacity > 0 ? window.remaining / window.capacity * 100 : null,window.name + '核对时余额')}<p class="meta">${window.resetAt ? `${stamp(window.resetAt)} 重置` : '重置时间未知'}</p></div>`).join('') || '<p class="empty">暂无窗口读数。</p>'}
     <div class="actions">${command('usage','登记使用',seatAttr(seat),'btn primary')}${command('recharge','登记充值',seatAttr(seat))}${seat.source === 'manual' ? command('observe','核对窗口',seatAttr(seat)) : ''}</div>`;
 }
+function refreshOpenDetails() {
+  if (!modal.open || formContext?.kind !== 'details') return;
+  const seat = state.seats.find(item => item.id === formContext.seatId && !item.archived);
+  if (!seat) {
+    modal.close();
+    tell('这个席位已移出当前范围');
+    return;
+  }
+  const content = dialogBody.querySelector('#seat-details');
+  const focusedCommand = content.contains(document.activeElement) && document.activeElement.dataset.cmd;
+  formContext.seat = seat;
+  dialogBody.querySelector('#dialog-title').textContent = seat.label;
+  content.innerHTML = details(seat);
+  if (focusedCommand) {
+    const target = content.querySelector(`[data-cmd="${focusedCommand}"]`) ?? dialogBody.querySelector('[data-cmd="close"]');
+    target.focus({preventScroll:true});
+  }
+}
 const newId = () => globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 function openDialog(kind, seat, ref, login, original) {
   if (busy || (kind === 'observe' && seat?.source !== 'manual')) return;
   const id = newId();
-  formContext = { kind, seat, ref, login, id, seatId: seat?.id ?? ref?.seatId ?? `manual-${id}` };
+  formContext = { kind, seat, ref, login, id, owner:journalOwner, openedAt:location.href, routeIndex, seatId: original?.seatId ?? seat?.id ?? ref?.seatId ?? `manual-${id}` };
   if (kind === 'observe') formContext.expectedVersion = observationVersion(state,seat.id);
   if (original) formContext.original = original;
   const extraTitles = {allow:'批准访问',revoke:'撤销成员访问','retry-action':'重试原操作','dismiss-action':'结束追踪'};
   const title = kind === 'details' ? seat.label : extraTitles[kind] ?? kinds[kind];
   let content = '';
-  if (kind === 'details') content = details(seat);
+  if (kind === 'details') content = `<div id="seat-details">${details(seat)}</div>`;
   else {
     let fields = '';
     if (kind === 'usage' || kind === 'recharge') {
@@ -497,7 +592,8 @@ function openDialog(kind, seat, ref, login, original) {
         unit === '%' ? '每使用 1 个百分点，此手工窗口的余量减少 1 个百分点。' : '';
       fields = `<p class="meta">${esc(seat.label)} · ${sourceName(seat)}</p>${note ? `<p class="muted">${note}</p>` : ''}
         ${kind === 'recharge' ? `<label class="field">支付币种<select name="unit">${options(['CNY','USD','EUR','HKD','JPY'],'CNY')}</select></label>` : `<input type="hidden" name="unit" value="${esc(unit)}">`}
-        ${input('amount',kind === 'recharge' ? '充值金额' : `使用量（${esc(unitName(unit))}）`,'','required type="number" min="0.01" step="0.01" inputmode="decimal" autofocus')}`;
+        ${input('amount',kind === 'recharge' ? '充值金额' : `使用量（${esc(unitName(unit))}）`,'',kind === 'usage' && unit === '次'
+          ? 'required type="number" min="1" step="1" inputmode="numeric" autofocus' : 'required type="number" min="0.01" step="0.01" inputmode="decimal" autofocus')}`;
     } else if (kind === 'add' || kind === 'observe') {
       fields = kind === 'add' ? `<p class="meta">建立手工维护的账户，并登记首次窗口读数。</p>
         ${input('label','账户名称','','required autofocus')}<div class="field-pair">
@@ -511,7 +607,8 @@ function openDialog(kind, seat, ref, login, original) {
       }) : [{}];
       fields += `<div id="windows">${windows.map(windowFields).join('')}</div>${command('add-window',`${icon('plus')} 增加窗口`)}`;
     } else if (kind === 'undo') {
-      fields = `<p>撤销 ${esc(seat?.label ?? ref.label ?? ref.seatId)} 的「${esc(kinds[ref.kind])}」？</p><p class="meta">原记录时间 ${stamp(ref.at)}，撤销将另记一条关联流水。</p>`;
+      const amount = Number.isFinite(ref.amount) ? ` ${num(ref.amount)} ${esc(unitName(ref.unit))}` : '';
+      fields = `<p>撤销 ${esc(seat?.label ?? ref.label ?? ref.seatId)} 的「${esc(kinds[ref.kind])}${amount}」？</p><p class="meta">原记录时间 ${stamp(ref.at)}，撤销将另记一条关联流水。</p>`;
     } else if (kind === 'allow') {
       fields = `<p>允许 <strong>${esc(login)}</strong> 以成员身份访问此团队？</p><p class="muted">批准后，该成员可查看团队全部已导入席位的额度、窗口读数和操作台账。</p>`;
     } else if (kind === 'revoke') {
@@ -530,6 +627,36 @@ function openDialog(kind, seat, ref, login, original) {
   if (!modal.open) modal.showModal();
   const autofocus = dialogBody.querySelector('[autofocus]');
   if (autofocus) autofocus.focus();
+}
+function dismissEditor() {
+  if (busy) return;
+  if (!formContext?.dirty) { modal.close(); return; }
+  let guard = dialogBody.querySelector('#discard-draft');
+  if (!guard) {
+    dialogBody.insertAdjacentHTML('beforeend',`<div id="discard-draft" class="detail-window"><p>放弃这次填写？</p><div class="actions">${command('keep-draft','继续填写')}${command('discard-draft','放弃草稿','','ghost')}</div></div>`);
+    guard = dialogBody.querySelector('#discard-draft');
+    dialogBody.querySelector('form').inert = true;
+    dialogBody.querySelector('.dialog-head button').disabled = true;
+  }
+  guard.querySelector('button').focus();
+}
+function restoreDraft(owner) {
+  if (!suspendedDraft) return;
+  const { context, fields, owner: previous, pendingRoute: route } = suspendedDraft;
+  suspendedDraft = undefined;
+  if (owner?.prefix !== previous || (context.kind !== 'add' && !state.seats.some(seat => !seat.archived && seat.id === context.seatId))) return;
+  formContext = context;
+  pendingRoute = routeIndex === context.routeIndex ? undefined : route ?? {from:context.openedAt};
+  dialogBody.replaceChildren(fields);
+  modal.showModal();
+  if (pendingRoute || dialogBody.querySelector('#discard-draft')) dismissEditor();
+  else dialogBody.querySelector('input:not([type="hidden"])')?.focus();
+}
+function continueDraft() {
+  dialogBody.querySelector('#discard-draft')?.remove();
+  dialogBody.querySelector('form').inert = false;
+  dialogBody.querySelector('.dialog-head button').disabled = false;
+  dialogBody.querySelector('input:not([type="hidden"]),select,[type="submit"]')?.focus();
 }
 function collect(form, context) {
   const { kind, id, seatId, ref } = context;
@@ -565,7 +692,7 @@ function collect(form, context) {
 async function submit(event) {
   if (event.target.id !== 'action-form') return;
   event.preventDefault();
-  if (busy) return;
+  if (busy || event.target.inert) return;
   const form = event.target;
   const context = formContext;
   const button = form.querySelector('[type="submit"]');
@@ -574,9 +701,19 @@ async function submit(event) {
   let token = version;
   errorNode.textContent = '';
   try {
+    if (!demo && (!context.owner || context.owner.prefix !== journalOwner?.prefix)) {
+      showReadError(Error('无法确认表单的团队身份。请重新读取台账后再操作。'));
+      return;
+    }
+    if (context.original && !canRecover(context.original,state)) {
+      modal.close();
+      dialogBody.replaceChildren();
+      formContext = null;
+      render();
+      return;
+    }
     if (context.kind === 'dismiss-action') {
-      if (!journalOwner) throw Error('请先重新读取团队台账。');
-      localStorage.removeItem(journalOwner.prefix + context.original.id);
+      localStorage.removeItem(context.owner.prefix + context.original.id);
       unresolved = readJournal(journalOwner);
       modal.close();
       render();
@@ -587,20 +724,33 @@ async function submit(event) {
     const action = access ? { login:context.login } : context.original ?? collect(form,context);
     busy = true;
     button.disabled = true;
+    const caption = button.textContent;
+    button.dataset.caption = caption;
+    button.textContent = '正在保存…';
+    form.setAttribute('aria-busy','true');
     for (const field of fields) field.disabled = true;
     token = ++version;
     const next = access ? await jsonRequest(`./api/${context.kind}`,action) :
-      demo ? await saveDemoAction(action,state) : await postAction(action,Boolean(context.original));
+      demo ? await saveDemoAction(action,state) : await postAction(action,context.owner,Boolean(context.original));
     if (token !== version) return;
     state = validState(next);
-    if (demo) state = { ...state, feed:published };
+    if (demo) state = { ...state, feed:demoFeed(published,state.seats) };
     lastRead = new Date().toISOString();
     refreshError = '';
     if (modal.open && formContext === context) modal.close();
     render();
+    if (action.kind === 'undo') {
+      const row = [...main.querySelectorAll('[data-entry]')].find(item => item.dataset.entry === action.ref);
+      (row || main.querySelector('.ledger-row') || main).focus({preventScroll:true});
+    }
     tell(access ? (context.kind === 'allow' ? '已批准团队访问' : '已撤销成员访问') : `${demo ? '模拟' : ''}${kinds[action.kind]}已保存`);
   } catch (error) {
     if (token !== version) return;
+    if (error.status === 404) needsRead = true;
+    if (rosterUnavailable(error) || [401,403,404,412].includes(error.status)) {
+      showReadError(error);
+      return;
+    }
     let message = error.message || '保存失败，请重试。';
     const original = unresolved.find(item => item.id === (context.original?.id ?? context.id));
     if (original && context.kind !== 'dismiss-action') {
@@ -624,15 +774,65 @@ async function submit(event) {
     render();
   } finally {
     busy = false;
+    form.removeAttribute('aria-busy');
+    if (button.textContent === '正在保存…') button.textContent = button.dataset.caption;
     button.disabled = Boolean(context.conflict || context.rejected);
     for (const field of fields) field.disabled = Boolean(context.original);
+    if (pendingRoute && modal.open) dismissEditor();
+    if (needsRead) syncIfVisible(true);
   }
 }
 dialogBody.addEventListener('submit',submit);
+dialogBody.addEventListener('input',() => { if (formContext) formContext.dirty = true; });
+dialogBody.addEventListener('change',() => { if (formContext) formContext.dirty = true; });
+let resizeFrame;
+function fitEditor() {
+  if (!modal.open) return;
+  cancelAnimationFrame(resizeFrame);
+  resizeFrame = requestAnimationFrame(() => {
+    const viewport = window.visualViewport;
+    const height = viewport?.height ?? innerHeight;
+    const topInset = viewport?.offsetTop || 0;
+    modal.style.setProperty('--editor-height',`${height}px`);
+    modal.style.setProperty('--editor-top',`${topInset}px`);
+    modal.style.setProperty('--editor-bottom',`${Math.max(0,document.documentElement.clientHeight - height - topInset)}px`);
+    const field = document.activeElement;
+    if (!modal.contains(field) || !field.matches('input,textarea,select,button')) return;
+    const bounds = field.getBoundingClientRect();
+    const box = modal.getBoundingClientRect();
+    const top = Math.max(box.top,topInset) + 10;
+    const bottom = Math.min(box.bottom,topInset + height) - 10;
+    if (bounds.bottom > bottom) modal.scrollTop += bounds.bottom - bottom;
+    else if (bounds.top < top) modal.scrollTop -= top - bounds.top;
+  });
+}
+window.addEventListener('resize',fitEditor);
+window.visualViewport?.addEventListener('resize',fitEditor);
+window.visualViewport?.addEventListener('scroll',fitEditor);
+new ResizeObserver(fitEditor).observe(modal);
+dialogBody.addEventListener('focusin',fitEditor);
+dialogBody.addEventListener('keydown',event => {
+  const guard = event.target.closest('#discard-draft');
+  if (event.key !== 'Tab' || !guard) return;
+  event.preventDefault();
+  const buttons = guard.querySelectorAll('button');
+  (event.target === buttons[0] ? buttons[1] : buttons[0]).focus();
+});
+document.querySelector('.skip').addEventListener('click',event => {
+  event.preventDefault();
+  main.focus({preventScroll:true});
+  main.scrollIntoView({block:'start'});
+});
+modal.addEventListener('cancel',event => { event.preventDefault(); dismissEditor(); });
+window.addEventListener('beforeunload',event => {
+  if (!(modal.open && formContext?.dirty) && !suspendedDraft?.context.dirty) return;
+  event.preventDefault();
+  event.returnValue = true;
+});
 modal.addEventListener('click',event => {
   if (event.target === modal && !dialogBody.contains(event.target)) {
     const box = modal.getBoundingClientRect();
-    if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) modal.close();
+    if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dismissEditor();
   }
 });
 async function loadFeed() {
@@ -650,7 +850,7 @@ async function loadFeed() {
   } finally {
     if (token === feedVersion) {
       feedLoading = false;
-      if (state) state = { ...state, feed:published };
+      if (state) state = { ...state, feed:demoFeed(published,state.seats) };
       render();
     }
   }
@@ -660,19 +860,38 @@ async function load() {
   reading = true;
   const token = ++version;
   try {
-    const incoming = validState(demo ? readDemo() : await jsonRequest('./api/state'));
+    const requestedUndos = pendingUndoIds.splice(0,24);
+    const query = new URLSearchParams();
+    if (requestedUndos.length && journalOwner) {
+      query.set('actor',journalOwner.actor);
+      for (const id of requestedUndos) query.append('undoReceipt',id);
+    }
+    const incoming = validState(demo ? readDemo() : await jsonRequest(query.size ? `./api/state?${query}` : './api/state'));
     if (token !== version) return;
-    state = demo ? { ...incoming, feed:published } : incoming;
+    if (!demo && new URLSearchParams(location.search).get('next') === 'clients' && ['member','owner'].includes(incoming.role)) {
+      location.replace('./clients/');
+      return;
+    }
+    state = demo ? { ...incoming, feed:demoFeed(published,incoming.seats) } : incoming;
     lastRead = new Date().toISOString();
     refreshError = '';
     if (!demo) {
       const owner = journalIdentity(incoming);
       if (journalOwner?.prefix !== owner?.prefix) {
+        pendingUndoIds = [];
         if (modal.open) modal.close();
         dialogBody.replaceChildren();
         formContext = null;
       }
+      if (modal.open && ((formContext?.seat && !incoming.seats.some(seat => !seat.archived && seat.id === formContext.seatId)) ||
+          (formContext?.original && !canRecover(formContext.original,incoming)))) {
+        modal.close();
+        dialogBody.replaceChildren();
+        formContext = null;
+        tell('这个席位已移出当前范围');
+      }
       journalOwner = owner;
+      restoreDraft(owner);
       unresolved = [];
       try {
         if (!owner) throw Error('暂未确认本机成员编号，请稍后重新读取。');
@@ -681,23 +900,33 @@ async function load() {
         } catch {
           refreshError = '无法读取旧会话的待确认记录，请人工核对团队流水。';
         }
-        const count = confirmJournal(owner,incoming.entries);
+        const count = confirmJournal(owner,incoming);
+        if (!requestedUndos.length && pendingUndoIds.length) needsRead = true;
+        if (modal.open && formContext?.original && !unresolved.some(action => action.id === formContext.original.id)) {
+          modal.close();
+          dialogBody.replaceChildren();
+          formContext = null;
+        }
         if (count) tell(`已在团队流水中确认 ${count} 笔待核对操作`);
       } catch {
         refreshError = owner ? '无法读取本机待确认记录，请先人工核对团队流水。' : '暂未确认本机成员编号，请稍后重新读取。';
       }
     }
+    refreshOpenDetails();
     render();
     return true;
   } catch (error) {
     if (token !== version) return;
-    if (state && error.status !== 403 && error.status !== 401) {
+    if (state && error.status !== 403 && error.status !== 401 && !rosterUnavailable(error)) {
       refreshError = `刷新失败，当前显示 ${stamp(lastRead)} 读取的状态。${error.message}`;
       render();
       return false;
     }
     showReadError(error);
-  } finally { reading = false; }
+  } finally {
+    reading = false;
+    if (needsRead) syncIfVisible(true);
+  }
 }
 async function reloadObservation() {
   const context = formContext;
@@ -716,8 +945,25 @@ document.addEventListener('click',event => {
   const target = event.target.closest('button[data-cmd]');
   if (!target) return;
   const { cmd, value, ref, login } = target.dataset;
-  if (cmd === 'close') { modal.close(); return; }
-  if (cmd === 'refresh') { void load(); return; }
+  if (cmd === 'close') { dismissEditor(); return; }
+  if (cmd === 'keep-draft') {
+    if (pendingRoute) {
+      if (!pendingRoute.returning) {
+        pendingRoute.returning = true;
+        history.go(formContext.routeIndex - routeIndex);
+      }
+    } else continueDraft();
+    return;
+  }
+  if (cmd === 'discard-draft') { modal.close(); return; }
+  if (cmd === 'refresh') {
+    if (!reading) {
+      target.setAttribute('aria-busy','true');
+      target.disabled = true;
+      void load().then(success => { if (success) tell('已读取最新台账'); }).finally(() => { target.disabled = false; target.removeAttribute('aria-busy'); });
+    }
+    return;
+  }
   if (cmd === 'retry-feed') { void loadFeed(); return; }
   if (!state) return;
   if (cmd === 'accounts' || cmd === 'more-cards') { updateAccounts(target); return; }
@@ -739,12 +985,14 @@ document.addEventListener('click',event => {
         dialogBody.querySelector('#form-error').textContent = '至少保留一个窗口。'; return;
       }
       target.closest('fieldset').remove();
+      formContext.dirty = true;
       dialogBody.querySelector('[data-cmd="add-window"]').focus();
       return;
     }
     case 'add-window': {
       const group = dialogBody.querySelector('#windows');
       group.insertAdjacentHTML('beforeend',windowFields());
+      formContext.dirty = true;
       group.lastElementChild.querySelector('input').focus();
       return;
     }
@@ -771,12 +1019,24 @@ main.addEventListener('change',event => {
   else return;
   render();
 });
-window.addEventListener('hashchange',() => {
+function enterRoute() {
   if (modal.open) modal.close();
   ledgerLimit = ledgerPageSize;
   render();
   main.focus({preventScroll:true});
   window.scrollTo(0,0);
+}
+window.addEventListener('hashchange',() => {
+  routeIndex = history.state?.magpieRouteIndex ?? markRoute(routeIndex + 1);
+  if (modal.open && (formContext?.dirty || busy)) {
+    const returning = pendingRoute?.returning;
+    pendingRoute = routeIndex === formContext.routeIndex ? undefined : {from:formContext.openedAt};
+    if (!pendingRoute && returning) continueDraft();
+    if (pendingRoute && !busy) dismissEditor();
+    return;
+  }
+  pendingRoute = undefined;
+  enterRoute();
 });
 window.addEventListener('storage',event => {
   if (demo && event.key === storageKey) void load();
@@ -786,6 +1046,8 @@ window.addEventListener('storage',event => {
       unresolved = readJournal(journalOwner);
       if (!busy && modal.open && formContext?.original && !unresolved.some(item => item.id === formContext.original.id)) {
         modal.close();
+        dialogBody.replaceChildren();
+        formContext = null;
         tell('此操作已在其他标签页处理');
       }
     } catch {
@@ -795,11 +1057,24 @@ window.addEventListener('storage',event => {
     render();
   }
 });
-document.addEventListener('visibilitychange',() => {
-  if (!demo && !document.hidden && !modal.open && !busy && (!lastRead || Date.now() - Date.parse(lastRead) > 45000)) void load();
+function syncIfVisible(force = false) {
+  if (document.hidden) return;
+  if (state && renderedDay !== dayInShanghai()) render();
+  if (demo) return;
+  if (!force && !needsRead && lastRead && Date.now() - Date.parse(lastRead) < pollPeriod - 1000) return;
+  if (busy || reading) { needsRead = true; return; }
+  needsRead = false;
+  void load();
+}
+document.addEventListener('visibilitychange',() => syncIfVisible(true));
+window.addEventListener('online',() => syncIfVisible(true));
+modal.addEventListener('close',() => {
+  if (pendingRoute && !modal.open) {
+    pendingRoute = undefined;
+    if (state) enterRoute();
+  }
+  if (needsRead) syncIfVisible(true);
 });
-if (!demo) window.setInterval(() => {
-  if (!document.hidden && !modal.open && !busy) void load();
-},45000);
+if (!demo) window.setInterval(() => syncIfVisible(),pollPeriod);
 await load();
 if (demo && state) void loadFeed();

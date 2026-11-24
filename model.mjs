@@ -24,7 +24,7 @@ function known(value) {
 }
 
 function rounded(value) {
-  return Math.round(value * 100) / 100;
+  return Number.isInteger(value) ? value : Math.round(value * 100) / 100;
 }
 
 function clean(value, label, max = 60) {
@@ -232,7 +232,9 @@ export function buildReport(state, nowIso = new Date().toISOString()) {
       const hasSampleTime = Number.isFinite(observed);
       const sample = hasSampleTime ? `采样 ${shanghaiTime.format(observed)}` : '采样时间未知，待复核';
       for (const window of seat.windows) {
-        const reading = hasSampleTime && known(window.remaining) ? `${amounts.format(window.remaining)} ${seat.unit}` : '余量未知';
+        const quota = getQuota({ ...seat, windows: [window] }, state.entries, generatedAt);
+        const value = quota.remaining == null ? '余量未知' : `${amounts.format(quota.remaining)} ${seat.unit}`;
+        const reading = quota.status === 'stale' ? `上次剩余 ${value}，待复核` : value;
         lines.push(`${seat.service} · ${seat.label} · ${window.name}　${reading}，${sample}`);
       }
     }
