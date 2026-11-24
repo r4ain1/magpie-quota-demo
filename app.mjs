@@ -305,6 +305,9 @@ function accountCard(seat, now) {
     <div class="card-actions">${command('usage','使用',seatAttr(seat),'')}${command('recharge','充值',seatAttr(seat),'')}
     ${seat.source === 'manual' ? command('observe','核对',seatAttr(seat),'') : ''}${command('details',`窗口 ${icon('arrow')}`,seatAttr(seat),'detail')}</div></article>`;
 }
+function moreCardsLabel(remaining) {
+  return `再显示 ${Math.min(cardPageSize,remaining)} 个账户`;
+}
 function accounts(now) {
   const seats = state.seats.filter(seat => !seat.archived);
   const services = [...new Set(seats.map(seat => seat.service))];
@@ -313,7 +316,41 @@ function accounts(now) {
   return `<section class="section"><div class="section-head"><div class="heading-group"><h2>账户与窗口</h2><span class="count">${visible.length}</span></div>
     <div class="filter" aria-label="筛选账户">${['',...services].map(value => tabButton('accounts',value,value || '全部',accountFilter)).join('')}</div></div>
     ${visible.length ? `<div class="cards">${visible.slice(0,cardLimit).map(seat => accountCard(seat,now)).join('')}</div>` : '<div class="panel empty">暂无账户，可添加首个手工账户。</div>'}
-    ${visible.length > cardLimit ? `<div class="ledger-paging">${command('more-cards',`再显示 ${Math.min(cardPageSize,visible.length-cardLimit)} 个账户`)}</div>` : ''}</section>`;
+    <div class="ledger-paging" ${visible.length > cardLimit ? '' : 'hidden'}>${command('more-cards',moreCardsLabel(Math.max(0,visible.length-cardLimit)))}</div></section>`;
+}
+function updateAccounts(button) {
+  const filtering = button.dataset.cmd === 'accounts';
+  if (filtering && button.dataset.value === accountFilter) return;
+  const section = button.closest('section');
+  const grid = section.querySelector('.cards');
+  if (!grid) return;
+  const motion = beforeRender();
+  const start = filtering ? 0 : grid.childElementCount;
+  if (filtering) {
+    section.querySelector('[aria-pressed="true"]').setAttribute('aria-pressed','false');
+    button.setAttribute('aria-pressed','true');
+    accountFilter = button.dataset.value;
+  }
+  cardLimit = start + cardPageSize;
+  const seats = state.seats.filter(seat => !seat.archived && (!accountFilter || seat.service === accountFilter));
+  const now = new Date().toISOString();
+  const cards = seats.slice(start,cardLimit).map(seat => accountCard(seat,now)).join('');
+  if (filtering) {
+    section.querySelector('.count').textContent = seats.length;
+    const restoreFocus = grid.contains(document.activeElement);
+    grid.innerHTML = cards;
+    if (restoreFocus) button.focus({preventScroll:true});
+  } else {
+    grid.insertAdjacentHTML('beforeend',cards);
+  }
+  const pager = section.querySelector('.ledger-paging');
+  const remaining = seats.length - cardLimit;
+  if (remaining <= 0 && pager.contains(document.activeElement)) {
+    grid.children[start]?.querySelector('button')?.focus({preventScroll:true});
+  }
+  pager.hidden = remaining <= 0;
+  if (remaining > 0) pager.firstElementChild.textContent = moreCardsLabel(remaining);
+  afterRender(motion);
 }
 function resetHistory() {
   const expanded = main.querySelector('#reset-history')?.open;
@@ -683,6 +720,7 @@ document.addEventListener('click',event => {
   if (cmd === 'refresh') { void load(); return; }
   if (cmd === 'retry-feed') { void loadFeed(); return; }
   if (!state) return;
+  if (cmd === 'accounts' || cmd === 'more-cards') { updateAccounts(target); return; }
   const entry = state.entries.find(item => item.id === ref);
   const seat = state.seats.find(item => item.id === (target.dataset.seat ?? entry?.seatId));
   switch (cmd) {
@@ -696,8 +734,6 @@ document.addEventListener('click',event => {
       row?.focus();
       return;
     }
-    case 'accounts': accountFilter = value; cardLimit = cardPageSize; break;
-    case 'more-cards': cardLimit += cardPageSize; break;
     case 'remove-window': {
       if (dialogBody.querySelectorAll('[data-window]').length <= 1) {
         dialogBody.querySelector('#form-error').textContent = '至少保留一个窗口。'; return;
