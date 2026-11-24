@@ -1,0 +1,94 @@
+.motion-meter {
+  width: 100% !important;
+  transform-origin: left center;
+}
+
+#notice.motion-live:not(:empty) {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  padding: 0;
+  transform: none;
+  white-space: nowrap;
+}
+
+.motion-notice {
+  position: fixed;
+  z-index: 5;
+  bottom: 22px;
+  left: 50%;
+  width: max-content;
+  max-width: 90vw;
+  padding: 9px 18px;
+  border-radius: 5px;
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: 0 4px 24px #0002;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 4px);
+}
+
+.motion-notice[data-visible] {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  button:enabled, select:enabled, #nav a, .text-link {
+    transition: transform 100ms ease-out;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    :is(button:enabled, select:enabled, #nav a, .text-link):hover {
+      transform: translateY(-1px);
+    }
+  }
+
+  :is(button:enabled, select:enabled, #nav a, .text-link):active {
+    transform: translateY(1px) scale(.985);
+    transition-duration: 60ms;
+  }
+
+  #nav a[aria-current]::after {
+    transform-origin: center;
+    animation: motion-nav-in 150ms ease-out;
+  }
+
+  @keyframes motion-nav-in {
+    from { transform: scaleX(.65); }
+    to { transform: scaleX(1); }
+  }
+
+  .motion-notice {
+    transition: opacity 130ms ease-out, transform 150ms ease-out, visibility 0s linear 150ms;
+  }
+
+  .motion-notice[data-visible] {
+    transition-delay: 0s;
+  }
+
+  @supports (transition-behavior: allow-discrete) and (overlay: auto) {
+    #editor, #editor::backdrop {
+      opacity: 0;
+      transition: opacity 140ms ease-out, transform 140ms ease-out,
+        display 140ms allow-discrete, overlay 140ms allow-discrete;
+    }
+
+    #editor { transform: translateY(5px); }
+    #editor[open] { transform: translateY(0); }
+    #editor[open], #editor[open]::backdrop { opacity: 1; }
+    #editor:not([open]), #editor:not([open])::backdrop { pointer-events: none; }
+
+    @starting-style {
+      #editor[open] { transform: translateY(5px); }
+      #editor[open], #editor[open]::backdrop { opacity: 0; }
+    }
+  }
+}

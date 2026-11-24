@@ -1,0 +1,70 @@
+name: Publish public demo
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '45 0 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: refresh-demo-feed
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.event.repository.private == false && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          persist-credentials: ${{ github.event_name != 'push' }}
+      - uses: actions/setup-node@v6
+        if: github.event_name != 'push'
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Refresh feed
+        if: github.event_name != 'push'
+        run: node scripts/refresh-demo.mjs feed.json
+      - name: Commit feed changes
+        if: github.event_name != 'push'
+        run: |
+          git add -- feed.json
+          if git diff --cached --quiet -- feed.json; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit --only -m 'Refresh public demo feed' -- feed.json
+          git push origin HEAD:refs/heads/main
+      - name: Stage static site
+        id: site
+        shell: bash
+        run: |
+          site=$(mktemp -d "$RUNNER_TEMP/demo-pages.XXXXXXXX")
+          for file in index.html styles.css motion.css app.mjs demo.mjs model.mjs motion.mjs feed.json; do
+            [[ -f "$file" && ! -L "$file" ]] || { echo "::error::Missing or linked asset $file"; exit 1; }
+            install -m 0644 -- "$file" "$site/"
+          done
+          echo "path=$site" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ steps.site.outputs.path }}
+
+  deploy:
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

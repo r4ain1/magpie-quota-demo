@@ -1,0 +1,106 @@
+{
+  "news": [
+    {
+      "title": "英伟达董事会全票恢复黄仁勋职务",
+      "url": "https://aihot.news/story/68ccf963-6e38-4e86-b2f3-289bd70774fb",
+      "source": "AIHOT 热点",
+      "at": "2026-11-23T20:46:15.000Z"
+    },
+    {
+      "title": "智谱发布GLM-5.4旗舰模型并上线Coding Plan",
+      "url": "https://aihot.news/story/fc5a905b-54af-4de4-9c7c-a366a60a9f84",
+      "source": "AIHOT 热点",
+      "at": "2026-11-23T23:40:49.000Z"
+    },
+    {
+      "title": "Anthropic 发布 Claude Ship 测试版，自动审查并批准 PR",
+      "url": "https://aihot.news/story/9474636b-5271-405b-91d7-b469bdf1aa8f",
+      "source": "AIHOT 热点",
+      "at": "2026-11-24T11:26:23.000Z"
+    },
+    {
+      "title": "Lean 社区确认阿尔波格黎曼猜想证明正确",
+      "url": "https://aihot.news/story/647b0945-9244-4f55-b509-0f3fa0f6fe51",
+      "source": "AIHOT 热点",
+      "at": "2026-11-24T14:28:41.000Z"
+    },
+    {
+      "title": "亚马逊约75亿美元收购Decart技术与团队",
+      "url": "https://aihot.news/story/51379310-d375-40d8-88e1-a8112bca2c10",
+      "source": "AIHOT 热点",
+      "at": "2026-11-24T15:51:07.000Z"
+    },
+    {
+      "title": "OpenAI与Cisco开源Shirudo：eBPF护住补丁窗口",
+      "url": "https://aihot.news/story/68abb2b5-1d0f-4c37-8ad9-72fcbc771eef",
+      "source": "AIHOT 热点",
+      "at": "2026-11-24T14:16:53.000Z"
+    },
+    {
+      "title": "OpenAI 提议以困惑度设共同安全上限，微软公布可比数据",
+      "url": "https://aihot.news/story/c5ab5cf5-6316-4ad6-9d74-f0b378a2b064",
+      "source": "AIHOT 热点",
+      "at": "2026-11-23T18:42:38.000Z"
+    },
+    {
+      "title": "Google AI Mode 开放连接 Wallet 等应用",
+      "url": "https://aihot.news/story/bdea332e-97e7-42dd-93e7-cc77870e68dc",
+      "source": "AIHOT 热点",
+      "at": "2026-11-23T21:39:20.000Z"
+    },
+    {
+      "title": "OpenAI在Chat标签页推送GPT-6.2 Sol对话版",
+      "url": "https://aihot.news/story/ee282aa9-469a-4555-8fbb-d171abad1e4d",
+      "source": "AIHOT 热点",
+      "at": "2026-11-24T07:42:05.000Z"
+    },
+    {
+      "title": "特朗普公开支持黄仁勋回归英伟达",
+      "url": "https://aihot.news/story/e04baccb-6e1d-4072-8167-8272457c90d1",
+      "source": "AIHOT 热点",
+      "at": "2026-11-23T15:04:01.000Z"
+    }
+  ],
+  "resets": [],
+  "guides": [
+    {
+      "title": "拆解 Codex 的 Agent 核心循环",
+      "url": "https://book.oiloil.org/articles/unrolling-the-codex-agent-loop",
+      "at": "2026-01-23",
+      "source": "Oil Book",
+      "product": "Codex"
+    },
+    {
+      "title": "我是如何使用大语言模型的",
+      "url": "https://book.oiloil.org/articles/how-i-use-llms",
+      "at": "2026-10-28",
+      "source": "Oil Book",
+      "product": "ChatGPT"
+    }
+  ],
+  "checkedAt": "2026-11-24T17:18:29.844Z",
+  "sources": {
+    "news": {
+      "status": "ok",
+      "lastSuccessAt": "2026-11-24T17:18:29.844Z",
+      "etag": "W/\"v1-hot-e26f4da713f273d4\""
+    },
+    "resets": {
+      "status": "ok",
+      "lastSuccessAt": "2026-11-24T17:18:29.844Z",
+      "etag": "W/\"v1-codex-resets-recent-d85b2d5b109b3054\""
+    },
+    "codexBook": {
+      "status": "ok",
+      "lastSuccessAt": "2026-11-24T16:44:13.588Z",
+      "etag": "W/\"d43b13a083d89925f4cf10db27bff3c3\""
+    },
+    "chatBook": {
+      "status": "ok",
+      "lastSuccessAt": "2026-11-24T16:44:13.588Z",
+      "etag": "W/\"992068b5cf2fce96ad7ed0ab540a27d9\""
+    }
+  },
+  "errors": [],
+  "resetCheckedAt": "2026-11-25T01:10:40.048+08:00"
+}
