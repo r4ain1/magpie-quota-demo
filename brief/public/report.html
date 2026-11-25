@@ -28,7 +28,7 @@
     main { width: min(100%, 41rem); margin: auto; padding: 1.25rem max(1rem, env(safe-area-inset-right)) max(2rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)) }
     header { border-bottom: 2px solid var(--ink); margin-bottom: 1.25rem; padding-bottom: .75rem }
     .brand { font-weight: 750; letter-spacing: .08em; color: var(--accent); margin: 0 }
-    h1, h2, p, dl, dd { margin: 0 }
+    h1, h2, h3, p, dl, dd { margin: 0 }
     h1 { font-family: ui-serif, "Songti SC", serif; font-size: 2.25rem; line-height: 1.25; margin-top: .35rem }
     h2 { font-size: 1.18rem }
     section { margin-bottom: 1rem }
@@ -38,7 +38,10 @@
     .note, dt, #message { color: var(--muted) }
     dl { display: grid; grid-template-columns: auto minmax(0, 1fr); margin-top: 1rem; gap: .35rem 1rem; border-top: 1px solid var(--line); padding-top: .75rem }
     dd { font-variant-numeric: tabular-nums }
-    #lines p { margin-top: .55rem; white-space: pre-wrap }
+    .balance { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; border-bottom: 1px solid var(--line) }
+    .balance strong { font-size: 1.15rem }
+    .account-details { margin: 1rem 0 0 }
+    .account-details dl { margin-top: .45rem }
     .actions { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem }
     button, input, a { font: inherit }
     button, .film { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; min-width: 48px; max-width: 100%; border-radius: .45rem; padding: .45rem .9rem }
@@ -53,7 +56,7 @@
       header { margin-bottom: min(1.25rem, 5vw); padding-bottom: min(.75rem, 3vw) }
       h1 { font-size: clamp(1.2rem, calc(.9rem + 4.2vw), 2.25rem) }
       .card { padding: min(1rem, 4vw) }
-      .value { font-size: clamp(1.8rem, calc(1.35rem + 7.8vw), 3.4rem) }
+      .value { font-size: clamp(1.25rem, calc(1rem + 6vw), 3.4rem) }
     }
     @media (max-width: 25em) { dl { grid-template-columns: 1fr; gap: 0 } dd + dt { margin-top: .45rem } }
   </style>
@@ -64,18 +67,11 @@
     <div id="content" hidden>
       <section class="card reading" aria-labelledby="live-title">
         <h2 id="live-title">当前剩余额度</h2>
-        <p id="value" class="value">—</p>
-        <p id="condition"></p>
-        <p class="note" id="observed"></p>
-        <dl>
-          <dt>适用范围</dt><dd id="scope"></dd>
-          <dt>额度窗口</dt><dd id="window-name"></dd>
-          <dt>重置 · 北京时间</dt><dd id="reset"></dd>
-          <dt>检查 · 北京时间</dt><dd id="checked"></dd>
-        </dl>
+        <div id="balances"></div>
+        <div id="details"></div>
       </section>
       <section class="card" aria-labelledby="report-title">
-        <h2 id="report-title">09:00 正式早报</h2>
+        <h2 id="report-title">今日早报</h2>
         <p class="note" id="edition"></p><div id="lines"></div>
       </section>
     </div>
@@ -101,7 +97,7 @@
     hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
   });
   const timestamps = ['observedAt', 'checkedAt', 'resetAt'];
-  const dataIds = ['value', 'condition', 'scope', 'window-name', 'reset', 'observed', 'checked', 'edition', 'lines'];
+  const dataIds = ['balances', 'details', 'edition', 'lines'];
   const aad = new TextEncoder().encode('magpie-shared-report-v1');
   let session = null;
   let request = null;
@@ -141,21 +137,34 @@
     return Date.parse(value);
   }
 
-  function validate(record) {
-    const live = record?.live;
-    const report = record?.report;
+  function hasFields(value, fields) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value) &&
+      Object.keys(value).length === fields.length && fields.every(field => Object.hasOwn(value, field));
+  }
+
+  function validAccounts(accounts) {
+    const fields = ['account', 'status', 'product', 'plan', 'window', 'remainingPercent', ...timestamps];
     const optionalText = value => value === null || typeof value === 'string';
-    if (record?.v !== 1 || !Number.isFinite(instant(record.publishedAt)) ||
-        !/(?:Z|[+]00:00)$/.test(record.publishedAt) || !live ||
-        !['ready', 'empty', 'stale', 'unavailable'].includes(live.status) ||
-        ![null, 'codex', 'chatgpt'].includes(live.product) ||
-        !optionalText(live.plan) || !optionalText(live.window) ||
-        !(live.remainingPercent === null || (Number.isFinite(live.remainingPercent) &&
-          live.remainingPercent >= 0 && live.remainingPercent <= 100)) ||
-        !timestamps.every(name => live[name] === null || Number.isFinite(instant(live[name])))) throw Error();
-    if (report !== null && (!report || !/^\d{4}-\d\d-\d\d$/.test(report.day) ||
-        !Number.isFinite(instant(report.generatedAt)) || !Array.isArray(report.lines) ||
-        !report.lines.every(line => typeof line === 'string'))) throw Error();
+    return Array.isArray(accounts) && accounts.length === 2 && ['Qi', 'MOU'].every((name, index) => {
+      const row = accounts[index];
+      return hasFields(row, fields) && row.account === name &&
+        ['ready', 'empty', 'stale', 'unavailable'].includes(row.status) &&
+        [null, 'codex', 'chatgpt'].includes(row.product) && optionalText(row.plan) && optionalText(row.window) &&
+        (row.remainingPercent === null || (Number.isFinite(row.remainingPercent) &&
+          row.remainingPercent >= 0 && row.remainingPercent <= 100)) &&
+        timestamps.every(field => row[field] === null || Number.isFinite(instant(row[field])));
+    });
+  }
+
+  function validate(record) {
+    if (!hasFields(record, ['v', 'publishedAt', 'accounts', 'report']) || record.v !== 2 ||
+        !Number.isFinite(instant(record.publishedAt)) || !/(?:Z|[+]00:00)$/.test(record.publishedAt) ||
+        !validAccounts(record.accounts)) throw Error();
+    const report = record.report;
+    if (report !== null && (!hasFields(report, ['day', 'generatedAt', 'accounts']) ||
+        typeof report.day !== 'string' || !/^\d{4}-\d\d-\d\d$/.test(report.day) ||
+        !Number.isFinite(instant(report.day + 'T00:00:00Z')) || !Number.isFinite(instant(report.generatedAt)) ||
+        !validAccounts(report.accounts))) throw Error();
     return record;
   }
 
@@ -182,40 +191,67 @@
     if (byId(id).textContent !== text) byId(id).textContent = text;
   }
 
-  function render(now = Date.now()) {
-    clearTimeout(displayTimer);
-    const { live, report } = payload;
-    const published = instant(payload.publishedAt), observed = instant(live.observedAt);
-    const expired = now >= published + 15 * minute || published < session.latest;
-    const view = expired ? { value: '—', condition: '发布数据已过期，等待新读数。' } : liveView(live, now);
-    setText('value', view.value);
-    setText('condition', (payload.snapshot ? '日报后备快照 · ' : '') + view.condition);
-    const elapsed = Math.floor((now - observed) / minute);
+  function textNode(tag, text) {
+    const node = document.createElement(tag);
+    node.textContent = text;
+    return node;
+  }
+
+  function accountDetails(row, view, asOf, frozen) {
+    const section = document.createElement('section');
+    section.className = 'account-details';
+    const heading = frozen ? `${row.account} · ${view.value}` : `${row.account} 额度明细`;
+    section.append(textNode('h3', heading), textNode('p', view.condition));
+    const list = document.createElement('dl');
+    const observed = instant(row.observedAt);
+    const elapsed = Math.floor((asOf - observed) / minute);
     const age = elapsed >= 1440 ? Math.floor(elapsed / 1440) + ' 天前' :
       elapsed >= 60 ? Math.floor(elapsed / 60) + ' 小时前' : elapsed > 0 ? elapsed + ' 分钟前' : '刚刚';
-    setText('observed', Number.isFinite(observed) ? `上次采样：${clock.format(observed)}（北京时间${elapsed >= 0 ? '，' + age : ''}）` : '上次采样时间未知');
-    const product = { codex: 'ChatGPT 订阅内的 Codex 额度', chatgpt: 'ChatGPT 主额度' }[live.product];
-    setText('scope', [product, publicText(live.plan)].filter(Boolean).join(' · ') || '未知');
-    setText('window-name', publicText(live.window) || '未知');
-    for (const [name, id] of [['checkedAt', 'checked'], ['resetAt', 'reset']]) {
-      const time = instant(live[name]);
-      setText(id, Number.isFinite(time) ? clock.format(time) : '未知');
+    const product = { codex: 'ChatGPT 订阅内的 Codex 额度', chatgpt: 'ChatGPT 主额度' }[row.product];
+    list.append(textNode('dt', '适用范围'), textNode('dd', [product, publicText(row.plan)].filter(Boolean).join(' · ') || '未知'),
+      textNode('dt', '额度窗口'), textNode('dd', publicText(row.window) || '未知'));
+    for (const [field, label] of [['observedAt', '采样'], ['checkedAt', '检查'], ['resetAt', '重置']]) {
+      const time = instant(row[field]);
+      const suffix = field === 'observedAt' && !frozen && elapsed >= 0 ? `（${age}）` : '';
+      list.append(textNode('dt', label + ' · 北京时间'), textNode('dd', Number.isFinite(time) ? clock.format(time) + suffix : '未知'));
     }
+    section.append(list);
+    return section;
+  }
+
+  function render(now = Date.now()) {
+    clearTimeout(displayTimer);
+    const { accounts, report } = payload;
+    const published = instant(payload.publishedAt);
+    const expired = now >= published + 15 * minute;
+    const balances = [], details = [], deadlines = [published + 15 * minute];
+    for (const row of accounts) {
+      const view = expired ? { value: '—', condition: '发布数据已过期，等待新读数。' } : liveView(row, now);
+      const balance = document.createElement('p');
+      balance.className = 'balance';
+      const value = textNode('span', view.value);
+      value.className = 'value';
+      balance.append(textNode('strong', row.account), value);
+      balances.push(balance);
+      details.push(accountDetails(row, view, now, false));
+      const observed = instant(row.observedAt);
+      deadlines.push(instant(row.resetAt), instant(row.checkedAt) + 15 * minute, observed + 120 * minute,
+        observed + (Math.floor((now - observed) / minute) + 1) * minute);
+    }
+    byId('balances').replaceChildren(...balances);
+    byId('details').replaceChildren(...details);
     const day = clock.format(now).slice(0, 10);
     const nine = Date.parse(day + 'T09:00:00+08:00');
     const generated = instant(report?.generatedAt);
     const formal = now >= nine && report?.day === day && generated >= nine &&
       generated <= Math.min(now, instant(payload.publishedAt)) &&
-      clock.format(generated).startsWith(day) && report.lines.some(line => line.trim());
+      clock.format(generated).startsWith(day);
+    setText('report-title', formal ? (generated >= nine + minute ? '延时补报' : '09:00 正式早报') : '今日早报');
     setText('edition', formal ? `生成于 ${clock.format(generated)}（北京时间）` :
       now < nine ? '北京时间尚未到 09:00，今日正式早报待发布。' : '尚无今日正式早报。');
-    byId('lines').replaceChildren(...(formal ? report.lines.map(line => {
-      const paragraph = document.createElement('p');
-      paragraph.textContent = publicText(line);
-      return paragraph;
-    }) : []));
-    const deadlines = [nine, nine + 15 * 60 * minute, generated, instant(live.resetAt),
-      observed + (elapsed + 1) * minute, published + 15 * minute, observed + 120 * minute, instant(live.checkedAt) + 15 * minute];
+    byId('lines').replaceChildren(...(formal ? report.accounts.map(row =>
+      accountDetails(row, liveView(row, generated), generated, true)) : []));
+    deadlines.push(nine, nine + 15 * 60 * minute, generated);
     const next = Math.min(...deadlines.filter(time => time > now));
     if (!document.hidden && Number.isFinite(next)) displayTimer = setTimeout(() => payload && render(), next - now);
   }
@@ -225,6 +261,7 @@
     payload = null;
     byId('content').hidden = byId('save').hidden = true;
     for (const id of dataIds) byId(id).replaceChildren();
+    setText('report-title', '今日早报');
   }
 
   function stopRequest() {
@@ -240,15 +277,13 @@
     byId('retry').hidden = !session;
   }
 
-  function sourcesFor(origin, path, now) {
+  function sourcesFor(origin, now) {
     const raw = { url: 'https://raw.githubusercontent.com/r4ain1/magpie-quota-demo/brief-current/current.json?t=' + Math.floor(now / minute) };
     const api = { url: 'https://api.github.com/repos/r4ain1/magpie-quota-demo/contents/current.json?ref=brief-current', accept: 'application/vnd.github.raw+json' };
     const primary = 'https://magpie-morning-r4ain1.vercel.app';
-    if (origin === 'https://r4ain1.github.io' &&
-        ['/magpie-quota-demo/', '/magpie-quota-demo/report.html', '/magpie-quota-demo/index.html'].includes(path))
-      return [api, raw, { url: primary + '/current.json' }, { url: './current.json', snapshot: true }];
     if (origin === primary) return [{ url: '/current.json' }, raw, api];
-    return [{ url: './current.json' }];
+    const snapshot = { url: './current.json', snapshot: true };
+    return origin.startsWith('https://') ? [api, raw, { url: primary + '/current.json' }, snapshot] : [snapshot];
   }
 
   async function readSource(source, signal) {
@@ -282,7 +317,7 @@
     const active = () => request === controller && session?.hash === location.hash;
     let repeat = true, refreshDelay = minute;
     try {
-      const sources = sourcesFor(location.origin, location.pathname, Date.now());
+      const sources = sourcesFor(location.origin, Date.now());
       const key = await crypto.subtle.importKey('raw', fragmentKey(session.hash), 'AES-GCM', false, ['decrypt']);
       let missing = true, timeError = false;
       for (const source of sources) {
@@ -295,6 +330,10 @@
           continue;
         }
         if (!active()) return;
+        if (source.snapshot) {
+          if (timeError) break;
+          return failure('暂时无法核实最新早报，请点「重新读取」。');
+        }
         if (result.status === 410) {
           repeat = false;
           return failure('分享已失效或已撤下。请向分享者索取最新完整链接。', true);
@@ -306,7 +345,7 @@
         const record = await unlock(result.envelope, key);
         if (!active()) return;
         const published = instant(record.publishedAt);
-        if ((!source.snapshot && published < session.latest) || published > Date.now() + 5 * minute) {
+        if (published < session.latest || published > Date.now() + 5 * minute) {
           timeError = true;
           continue;
         }
@@ -315,7 +354,7 @@
           const nextUpload = Math.floor(Date.now() / (5 * minute)) * 5 * minute + 25_000;
           refreshDelay = nextUpload > Date.now() ? nextUpload - Date.now() : nextUpload + 5 * minute - Date.now();
         }
-        payload = { ...record, snapshot: Boolean(source.snapshot) };
+        payload = record;
         render();
         byId('recovery').hidden = true;
         byId('content').hidden = byId('save').hidden = byId('retry').hidden = false;
@@ -339,6 +378,7 @@
   }
 
   function start() {
+    const latest = session?.hash === location.hash ? session.latest : -Infinity;
     stopRequest();
     clearContent();
     session = null;
@@ -348,7 +388,7 @@
       return failure('请打开分享者发来的完整 HTTPS 链接，保留末尾的 #k= 部分。也可以粘贴到下方，在本机解锁。', true);
     }
     if (!globalThis.crypto?.subtle) return failure('此浏览器无法安全解锁。请在系统浏览器打开完整 HTTPS 链接。', true);
-    session = { hash: location.hash, latest: -Infinity };
+    session = { hash: location.hash, latest };
     refresh();
   }
 
