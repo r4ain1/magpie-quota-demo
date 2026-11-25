@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https://raw.githubusercontent.com/r4ain1/magpie-quota-demo/brief-current/current.json https://magpie-morning-r4ain1.vercel.app/current.json; img-src data:; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https://api.github.com/repos/r4ain1/magpie-quota-demo/contents/current.json https://raw.githubusercontent.com/r4ain1/magpie-quota-demo/brief-current/current.json https://magpie-morning-r4ain1.vercel.app/current.json; img-src data:; base-uri 'none'; form-action 'none'; object-src 'none'">
   <meta name="color-scheme" content="light dark">
   <link rel="icon" href="data:,">
   <title>ChatGPT 订阅额度早报 · Magpie</title>
@@ -235,21 +235,23 @@
 
   function sourcesFor(origin, path, now) {
     const raw = { url: 'https://raw.githubusercontent.com/r4ain1/magpie-quota-demo/brief-current/current.json?t=' + Math.floor(now / minute) };
+    const api = { url: 'https://api.github.com/repos/r4ain1/magpie-quota-demo/contents/current.json?ref=brief-current', accept: 'application/vnd.github.raw+json' };
     const primary = 'https://magpie-morning-r4ain1.vercel.app';
     if (origin === 'https://r4ain1.github.io' &&
         ['/magpie-quota-demo/', '/magpie-quota-demo/report.html', '/magpie-quota-demo/index.html'].includes(path))
-      return [raw, { url: primary + '/current.json' }, { url: './current.json', snapshot: true }];
-    if (origin === primary) return [{ url: '/current.json' }, raw];
+      return [api, raw, { url: primary + '/current.json' }, { url: './current.json', snapshot: true }];
+    if (origin === primary) return [{ url: '/current.json' }, raw, api];
     return [{ url: './current.json' }];
   }
 
-  async function readSource(url, signal) {
+  async function readSource(source, signal) {
     const attempt = new AbortController();
     const cancel = () => attempt.abort();
     signal.addEventListener('abort', cancel, { once: true });
     const timeout = setTimeout(cancel, 4500);
     try {
-      const response = await fetch(url, { cache: 'no-store', credentials: 'omit', mode: 'cors',
+      const response = await fetch(source.url, { cache: 'no-store', credentials: 'omit', mode: 'cors',
+        headers: source.accept ? { Accept: source.accept } : {},
         redirect: 'error', referrerPolicy: 'no-referrer', signal: attempt.signal });
       if (!response.ok) return { status: response.status };
       const envelope = await response.json();
@@ -271,7 +273,7 @@
     const controller = new AbortController();
     request = controller;
     const active = () => request === controller && session?.hash === location.hash;
-    let repeat = true;
+    let repeat = true, refreshDelay = minute;
     try {
       const sources = sourcesFor(location.origin, location.pathname, Date.now());
       const key = await crypto.subtle.importKey('raw', fragmentKey(session.hash), 'AES-GCM', false, ['decrypt']);
@@ -280,7 +282,7 @@
         if (!active()) return;
         let result;
         try {
-          result = await readSource(source.url, controller.signal);
+          result = await readSource(source, controller.signal);
         } catch {
           missing = false;
           continue;
@@ -302,6 +304,10 @@
           continue;
         }
         session.latest = Math.max(session.latest, published);
+        if (source.accept) {
+          const nextUpload = Math.floor(Date.now() / (5 * minute)) * 5 * minute + 25_000;
+          refreshDelay = nextUpload > Date.now() ? nextUpload - Date.now() : nextUpload + 5 * minute - Date.now();
+        }
         payload = { ...record, snapshot: Boolean(source.snapshot) };
         render();
         byId('recovery').hidden = true;
@@ -320,7 +326,7 @@
     } finally {
       if (active()) {
         request = null;
-        if (repeat && !document.hidden && navigator.onLine) pollTimer = setTimeout(refresh, minute);
+        if (repeat && !document.hidden && navigator.onLine) pollTimer = setTimeout(refresh, refreshDelay);
       }
     }
   }
@@ -344,7 +350,10 @@
     const field = byId('link');
     try {
       const link = new URL(field.value.trim());
-      if (link.protocol !== 'https:' || link.origin !== location.origin || link.pathname !== location.pathname ||
+      const ownPage = link.origin === location.origin && link.pathname === location.pathname;
+      const pagesReader = link.origin === 'https://r4ain1.github.io' && /^\/magpie-quota-demo\/(?:index\.html|report\.html)?$/.test(link.pathname);
+      const mirrorReader = link.origin === 'https://magpie-morning-r4ain1.vercel.app' && ['/','/report.html','/index.html'].includes(link.pathname);
+      if (link.protocol !== 'https:' || !(ownPage || pagesReader || mirrorReader) ||
           link.search || link.username || link.password) throw Error();
       fragmentKey(link.hash);
       history.replaceState(null, '', link.hash);
