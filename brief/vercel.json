@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
+    { "source": "/dashboard-news.json", "destination": "https://r4ain1.github.io/magpie-quota-demo/dashboard-news.json" },
     { "source": "/current.json", "destination": "/api/current" }
   ]
 }

@@ -1,0 +1,39 @@
+{
+  "checkedAt": "2026-11-25T01:53:02.909Z",
+  "news": [
+    {
+      "title": "OpenAI与Cisco开源Shirudo：eBPF护住补丁窗口",
+      "url": "https://aihot.news/story/68abb2b5-1d0f-4c37-8ad9-72fcbc771eef",
+      "source": "AIHOT 热点",
+      "at": "2026-11-24T14:16:53.000Z"
+    },
+    {
+      "title": "OpenAI与Anthropic员工警告内部模型难安全发布",
+      "url": "https://aihot.news/story/352fff72-a318-46a8-9820-a84e33ea566a",
+      "source": "AIHOT 热点",
+      "at": "2026-11-24T16:06:27.000Z"
+    }
+  ],
+  "resets": [
+    {
+      "title": "ChatGPT Business · Tibo 预告将发放重置卡",
+      "url": "https://x.com/thsottiaux/status/2125299248782778588",
+      "source": "AIHOT 重置监测",
+      "at": "2026-11-25T02:43:21.000+08:00"
+    }
+  ],
+  "guides": [
+    {
+      "title": "拆解 Codex 的 Agent 核心循环",
+      "url": "https://book.oiloil.org/articles/unrolling-the-codex-agent-loop",
+      "source": "Oil Book",
+      "at": "2026-01-23"
+    },
+    {
+      "title": "我是如何使用大语言模型的",
+      "url": "https://book.oiloil.org/articles/how-i-use-llms",
+      "source": "Oil Book",
+      "at": "2026-10-28"
+    }
+  ]
+}

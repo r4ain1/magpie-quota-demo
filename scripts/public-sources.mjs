@@ -7,6 +7,8 @@ const guides = [
 ];
 const privateText = /[\w.+-]+@[\w.-]+|%40|(?:bearer|basic)\s+\S+|(?:api[_-]?key|password|access[_-]?token|authorization|secret)\s*[:=]|(?:sk-|gh[pousr]_|github_pat_|eyJ)[A-Za-z0-9_.-]{8,}/i;
 
+export { clean, guides, publicUrl };
+
 function clean(value) {
   if (typeof value !== 'string' || privateText.test(value) || /[<>]/.test(value)) return '';
   return value.replace(/\s+/g, ' ').trim().slice(0, 500);

@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'brief/**'
+      - 'scripts/dashboard-news.mjs'
+      - 'scripts/public-sources.mjs'
       - '.github/workflows/refresh-demo.yml'
   workflow_dispatch:
   schedule:
@@ -28,6 +30,29 @@ jobs:
         with:
           ref: main
           persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/cache@v4
+        with:
+          path: .dashboard-cache/dashboard-news.json
+          key: dashboard-news-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: dashboard-news-v1-
+      - name: Refresh public dashboard news
+        shell: bash
+        run: |
+          mkdir -p .dashboard-cache
+          snapshot=.dashboard-cache/dashboard-news.json
+          if [[ ! -f "$snapshot" ]]; then
+            previous="$RUNNER_TEMP/previous-dashboard-news.json"
+            if curl -fsS --max-time 15 --output "$previous" https://r4ain1.github.io/magpie-quota-demo/dashboard-news.json &&
+              jq -e 'type=="object" and (keys==["checkedAt","guides","news","resets"]) and ([.guides,.news,.resets]|all(type=="array"))' "$previous" >/dev/null; then
+              cp -- "$previous" "$snapshot"
+            else
+              cp -- brief/dashboard-news.json "$snapshot"
+            fi
+          fi
+          node scripts/dashboard-news.mjs "$snapshot"
       - name: Stage the reader, film and encrypted fallback
         id: site
         shell: bash
@@ -38,6 +63,7 @@ jobs:
             install -m 0644 -- "brief/public/$file" "$site/$file"
           done
           cp -- "$site/index.html" "$site/report.html"
+          install -m 0644 -- .dashboard-cache/dashboard-news.json "$site/dashboard-news.json"
           git fetch --no-tags --depth=1 origin refs/tags/brief-current
           git show FETCH_HEAD:current.json > "$site/current.json"
           jq -e 'type=="object" and (keys==["data","iv","v"]) and .v==1 and (.iv|test("^[A-Za-z0-9_-]{16}$")) and (.data|type=="string" and length>=22 and length<=300000 and test("^[A-Za-z0-9_-]+$"))' "$site/current.json" >/dev/null

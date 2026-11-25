@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-source="public">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -7,86 +7,187 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https://api.github.com/repos/r4ain1/magpie-quota-demo/contents/current.json https://raw.githubusercontent.com/r4ain1/magpie-quota-demo/brief-current/current.json https://magpie-morning-r4ain1.vercel.app/current.json; img-src data:; base-uri 'none'; form-action 'none'; object-src 'none'">
   <meta name="color-scheme" content="light dark">
   <link rel="icon" href="data:,">
-  <title>ChatGPT 订阅额度早报 · Magpie</title>
+  <title>余量 / MAGPIE · 额度总览</title>
   <style>
     :root {
-      color-scheme: light dark;
-      --paper: #f8f3e7; --panel: #fffaf0; --ink: #322a24; --muted: #65584d;
-      --line: #d2bda7; --accent: #963929; --wash: #f2e4d6;
-      font-family: system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color-scheme: light;
+      --paper:#f6f5ef; --panel:#fffef9; --ink:#282a25; --muted:#62665d;
+      --line:#d6d7cb; --accent:#a43d2a; --wash:#eeeee5; --night:#282e29;
+      --serif:"Songti SC","STSong","Noto Serif CJK SC","SimSun",Georgia,serif;
+      --mono:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
       color: var(--ink); background: var(--paper); line-height: 1.6;
     }
     @media (prefers-color-scheme: dark) {
-      :root {
-        --paper: #211c19; --panel: #2c2521; --ink: #fbf3e6; --muted: #d2bfae;
-        --line: #615044; --accent: #ffad95; --wash: #3d2b24;
+      :root:not([data-theme="light"]) {
+        color-scheme:dark; --paper:#20221e; --panel:#292c26; --ink:#eeeee2; --muted:#bbc0b3;
+        --line:#484c42; --accent:#f09a82; --wash:#34382f; --night:#171c18;
       }
     }
     * { box-sizing: border-box }
     [hidden] { display: none !important }
-    body { margin: 0; overflow-wrap: anywhere }
-    main { width: min(100%, 41rem); margin: auto; padding: 1.25rem max(1rem, env(safe-area-inset-right)) max(2rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)) }
-    header { border-bottom: 2px solid var(--ink); margin-bottom: 1.25rem; padding-bottom: .75rem }
-    .brand { font-weight: 750; letter-spacing: .08em; color: var(--accent); margin: 0 }
-    h1, h2, h3, p, dl, dd { margin: 0 }
-    h1 { font-family: ui-serif, "Songti SC", serif; font-size: 2.25rem; line-height: 1.25; margin-top: .35rem }
-    h2 { font-size: 1.18rem }
-    section { margin-bottom: 1rem }
-    .card { background: var(--panel); border: 1px solid var(--line); border-radius: .75rem; padding: 1rem }
-    .reading { background: var(--wash); border-top: .25rem solid var(--accent) }
-    .value { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 720; font-size: 3.4rem; line-height: 1.2; margin: .28rem 0 }
-    .note, dt, #message { color: var(--muted) }
-    dl { display: grid; grid-template-columns: auto minmax(0, 1fr); margin-top: 1rem; gap: .35rem 1rem; border-top: 1px solid var(--line); padding-top: .75rem }
-    dd { font-variant-numeric: tabular-nums }
-    .balance { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; border-bottom: 1px solid var(--line) }
-    .balance strong { font-size: 1.15rem }
-    .account-details { margin: 1rem 0 0 }
-    .account-details dl { margin-top: .45rem }
-    .actions { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem }
-    button, input, a { font: inherit }
-    button, .film { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; min-width: 48px; max-width: 100%; border-radius: .45rem; padding: .45rem .9rem }
-    button { cursor: pointer; color: var(--accent); border: 1px solid var(--accent); background: var(--panel); font-weight: 650 }
-    .film { color: var(--accent); text-underline-offset: .2em }
-    :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px }
-    #message { margin-bottom: .75rem }
+    :root[data-theme="dark"] {color-scheme:dark;--paper:#20221e;--panel:#292c26;--ink:#eeeee2;--muted:#bbc0b3;--line:#484c42;--accent:#f09a82;--wash:#34382f;--night:#171c18}
+    body {margin:0;overflow-wrap:anywhere;font-size:.9375rem}
+    a {color:inherit;text-underline-offset:.22em}
+    button,input,summary {font:inherit;color:inherit}
+    button,summary {cursor:pointer}
+    :focus-visible {outline:3px solid var(--accent);outline-offset:3px}
+    :target {scroll-margin-block:1rem}
+    .wrap,main {width:min(1256px,calc(100% - clamp(32px,9vw,152px)));margin-inline:auto}
+    .mast {background:var(--panel);border-bottom:1px solid var(--line)}
+    .mast-inner,.brand,nav,.mast-tools,.row,.section-head,.card-head,.hero-foot,.brief-foot,.actions,.news-filters,.eyeline,.dateline {display:flex;align-items:center}
+    .mast-inner {min-height:68px;gap:clamp(20px,5vw,84px)}
+    .brand {gap:9px;font:700 1.56rem/1 var(--serif);text-decoration:none;white-space:nowrap}
+    .brand svg {width:36px;height:36px;flex:none}
+    .brand small {font:650 .63rem/1 var(--mono);border-left:1px solid var(--line);letter-spacing:.12em;padding-left:10px}
+    nav {gap:clamp(14px,2.6vw,42px);align-self:stretch}
+    nav a {display:grid;align-items:center;position:relative;font-size:.875rem;text-decoration:none;color:var(--muted);white-space:nowrap}
+    nav a[aria-current] {color:var(--ink);font-weight:650}
+    nav a[aria-current]::after {content:"";position:absolute;inset:auto 0 0;height:3px;background:var(--accent)}
+    .mast-tools {margin-left:auto;gap:10px}.pill,.tag {font-size:.75rem;color:var(--muted)}
+    .pill {white-space:nowrap;border:1px solid var(--line);border-radius:20px;padding:2px 10px}
+    .pill::before,.sync::before {content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:6px}
+    .sync::before {background:#558366}.sync[data-health="waiting"]::before {background:var(--accent)}
+    main {padding-block:clamp(22px,3vw,36px) max(42px,env(safe-area-inset-bottom));min-height:70vh}
+    h1,h2,h3,p,dl,dd {margin:0}
+    h1,h2,h3 {font-family:var(--serif);line-height:1.3}
+    h1 {font-size:clamp(2.05rem,3.6vw,3.4rem);letter-spacing:-.04em}
+    h2 {font-size:clamp(1.5rem,2.3vw,2.05rem);letter-spacing:-.025em}
+    h3 {font-size:1.35rem}
+    .row,.actions,.dateline,.eyeline,.news-filters {gap:8px;flex-wrap:wrap}
+    .page-top,.section-head,.card-head,.hero-foot,.brief-foot {display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .dateline,.note,dt,.meta,#message {color:var(--muted)}
+    .dateline,.meta,#message,.tag,dt,dd {font-size:.8rem}.dateline {margin-top:6px}
+    .sync {margin:10px 0 15px} .sync:empty {display:none}
+    .button,.actions a,.actions button,.icon-button {display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:44px;background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:6px 13px;color:var(--ink);font-size:.85rem;text-decoration:none}
+    .actions a,.actions button {min-width:48px;min-height:48px}.actions {margin-top:18px}
+    .button:hover,.actions a:hover,.actions button:hover {border-color:var(--muted)}
+    #retry {min-width:48px;min-height:48px;white-space:nowrap}
+    .icon-button {border-color:transparent;background:transparent;font-size:1.2rem;padding:4px}.icon-button:hover {background:var(--wash)}
+    .metrics {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-block:1px solid var(--line);margin-bottom:18px}
+    .stat {padding:10px clamp(10px,2vw,24px);min-width:0}.stat+.stat {border-left:1px solid var(--line)}
+    .balance {display:flex;flex-direction:column;align-items:flex-start}
+    .balance strong {font-size:.87rem}.balance strong::after {content:" 当前剩余";font-weight:400;color:var(--muted)}
+    .value,.figure,.card-value,time,.count {font-family:var(--mono);font-variant-numeric:tabular-nums}
+    .value {font-size:clamp(1.4rem,2.4vw,2.05rem);font-weight:650;line-height:1.3;white-space:nowrap}
+    .feature-grid {display:grid;grid-template-columns:minmax(0,1.85fr) minmax(255px,1fr);gap:18px}
+    .card,.hero {min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:clamp(16px,2vw,27px)}
+    .hero {background:var(--night);border-color:var(--night);color:#fbf9ee;padding-inline:clamp(18px,2.5vw,36px)}
+    .hero :focus-visible {outline-color:#ffd7a8}.hero h2,.brief-card h2 {font-size:clamp(1.7rem,2.7vw,2.5rem)}
+    .eyeline {font-size:.8rem;font-weight:650}.hero .eyeline::before {content:"◎";color:#edab8a}
+    .badge-dark {font-size:.76rem;color:#e4e6da;border:1px solid #636d62;padding:2px 8px;border-radius:4px}
+    .hero-middle {display:flex;align-items:flex-end;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:18px 0 13px}
+    .figure {font-size:clamp(2.6rem,4.7vw,4.4rem);letter-spacing:-.07em;line-height:1;white-space:nowrap}
+    .hero .meta,.hero-foot {color:#d1d6c9}
+    .meter-row {display:grid;grid-template-columns:minmax(3.5em,auto) minmax(18px,1fr) minmax(3.7em,auto);align-items:center;gap:10px;margin:.4rem 0;font-size:.8rem}
+    .meter-row>span:last-child {text-align:right;font-family:var(--mono)}
+    .rail {position:relative;height:5px;background:var(--wash);overflow:hidden;border-radius:1px}
+    .rail>i {display:block;height:100%;background:var(--ink);transition:width 160ms ease-out}
+    .hero .rail {height:12px;background:#485147}.hero .rail>i {background:#dce0c9}.hero .limiting .rail>i {background:#e59c80}
+    .hero .rail::after {content:"";position:absolute;inset:0;background:repeating-linear-gradient(to right,transparent 0 calc(5% - 2px),var(--night) calc(5% - 2px) 5%)}
+    .hero-foot,.brief-foot {margin-top:auto;padding-top:12px;border-top:1px solid var(--line);font-size:.8rem;flex-wrap:wrap}
+    .hero-foot {border-color:#525b50;margin-top:16px}
+    .text-link {border:0;background:none;color:inherit;font-size:.84rem;font-weight:600;text-decoration:none;padding:6px 0}.text-link:hover {text-decoration:underline}
+    .brief-card {display:flex;flex-direction:column;gap:12px}.brief-card .eyeline {color:var(--accent);justify-content:space-between}
+    .brief-card .excerpt {color:var(--muted);line-height:1.8;font-size:.9rem;margin-bottom:12px}
+    .section {margin-top:clamp(22px,3vw,33px)}.section-head {margin-bottom:12px;flex-wrap:wrap}
+    .count {font-size:.75rem;font-weight:400;border:1px solid var(--line);color:var(--muted);padding:2px 6px;border-radius:3px}
+    .tiles {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+    .account-card {padding:17px 19px 0;scroll-margin-block:12px}
+    .mark {display:grid;place-items:center;width:34px;height:34px;border-radius:6px;background:var(--wash);font:650 .9rem var(--mono)}
+    .account-card h3 {margin:11px 0 2px}.card-value {font-size:1.9rem;letter-spacing:-.065em;line-height:1.25}
+    .value-line {display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:12px 0 6px}
+    .account-card>.meta {margin:8px 0}.account-card details {border-top:1px solid var(--line);margin-top:10px}
+    summary {font-size:.83rem;padding:12px 0;font-weight:600}
+    dl {display:grid;grid-template-columns:minmax(6em,auto) minmax(0,1fr);gap:4px 14px;padding:10px 0 14px}
+    dd {font-variant-numeric:tabular-nums}.note {font-size:.9rem}
+    #lines {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
+    #lines .account-details {padding:15px;border:1px solid var(--line);border-radius:5px}#lines .account-details>p {font-size:.85rem}
+    .news-filters button {font-size:.82rem;border:0;border-bottom:2px solid transparent;min-height:44px;background:none;padding:5px 8px;color:var(--muted)}
+    .news-filters [aria-pressed="true"] {color:var(--ink);border-color:var(--accent);font-weight:650}
+    .news-row,.log-row {padding:13px 0;border-top:1px solid var(--line)}.news-row:first-child,.log-row:first-child {border:0}
+    .news-row a {font:600 1.11rem/1.55 var(--serif);text-decoration:none}.news-row a:hover {text-decoration:underline}
+    .log-row {display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}
+    .foot {display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:26px;padding-top:8px;border-top:1px solid var(--line)}.foot .actions {margin:0}
+    #recovery {max-width:34rem}#recovery label {display:block;font-weight:650}
+    #recovery input {display:block;width:100%;min-height:46px;background:var(--paper);border:1px solid var(--muted);border-radius:4px;padding:8px;margin:8px 0 12px}
+    #copy-field {display:block;width:100%;min-height:44px;padding:6px 10px;margin-block:6px;background:var(--panel);border:1px solid var(--line);border-radius:4px}
+    .sr-only {position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after {transition:none!important;animation:none!important;scroll-behavior:auto!important}}
     label { display: block; font-weight: 650 }
     input { display: block; width: 100%; min-height: 44px; padding: .55rem; color: var(--ink); background: var(--panel); border: 1px solid var(--muted); border-radius: .4rem; margin: .5rem 0 .75rem }
-    @media (max-width: 30em) {
-      main { padding-top: min(1.25rem, 5vw); padding-inline: max(min(1rem, 4vw), env(safe-area-inset-left)) max(min(1rem, 4vw), env(safe-area-inset-right)) }
-      header { margin-bottom: min(1.25rem, 5vw); padding-bottom: min(.75rem, 3vw) }
-      h1 { font-size: clamp(1.2rem, calc(.9rem + 4.2vw), 2.25rem) }
-      .card { padding: min(1rem, 4vw) }
-      .value { font-size: clamp(1.25rem, calc(1rem + 6vw), 3.4rem) }
+    @media(max-width:1000px) {.wrap,main {width:calc(100% - 40px)}.mast-inner {flex-wrap:wrap;gap:0 16px}.brand small {display:none}nav a {min-height:48px}nav {gap:clamp(8px,1.2vw,16px)}}
+    @media(max-width:680px) {
+      .wrap,main {width:calc(100% - max(32px,env(safe-area-inset-left) + env(safe-area-inset-right)))}
+      .mast-inner {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0;min-height:52px;padding-top:5px}
+      .brand {font-size:1.3rem}.brand svg {width:29px;height:29px}.mast-tools {grid-area:1/2}
+      nav {grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+      nav a {justify-content:center;min-height:44px;font-size:clamp(.73rem,3.5vw,.88rem);white-space:normal;text-align:center}
+      .feature-grid,.tiles,#lines {grid-template-columns:minmax(0,1fr);gap:12px}
+      .page-top {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 6px}
+      .page-top>div {display:contents}.page-top h1 {grid-area:1/1;font-size:clamp(1.18rem,calc(1rem + 4.4vw),2.8rem)}
+      #retry {grid-area:1/2;align-self:center;font-size:clamp(.68rem,calc(.48rem + 1.35vw),.85rem);padding:4px 7px}
+      .dateline {grid-column:1/-1;font-size:.75rem}.stat {padding:9px 7px}
+      .balance strong,.stat .meta {font-size:.75rem}.balance strong::after {content:" 余量"}
+      .value {font-size:clamp(1.3rem,7vw,2.2rem)}.section-head {gap:6px}
+      .actions a,.actions button {min-height:48px}.news-filters {gap:2px}
+      .page-top .button {padding:4px 8px}.brief-card h2 {font-size:1.65rem}
     }
-    @media (max-width: 25em) { dl { grid-template-columns: 1fr; gap: 0 } dd + dt { margin-top: .45rem } }
+    @media(max-width:390px){dl {grid-template-columns:1fr;gap:0}dd+dt {margin-top:7px}.pill {font-size:.66rem;padding:2px 6px}.hero-middle {align-items:start}.stat .meta {font-size:.72rem}}
+    @media(max-width:360px) {
+      #retry {width:48px;padding:0}
+      #retry span {display:none}
+      #retry::before {content:"↻";font:1.4rem/1 sans-serif}
+    }
+    @media print {.mast,.foot,.actions,nav,.button {display:none}main {width:100%;padding:0}.card {break-inside:avoid}}
   </style>
 </head>
 <body>
+  <header class="mast"><div class="wrap mast-inner">
+    <a class="brand" data-view="overview" href="?view=overview" aria-label="余量首页"><svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="7" fill="#b34431"/><path fill="#fff8e9" d="m5 30 12-13 6-3 2-5 5-2 3 2-1 3 5 1-6 2-5 8-7 2-9 9 5-10z"/><path fill="#292824" d="m12 26 8-9 8-3-5 6z"/><circle cx="29.5" cy="9.9" r=".8" fill="#292824"/></svg>余量 <small>MAGPIE</small></a>
+    <nav id="navigation" aria-label="主导航" hidden><a href="?view=overview" data-view="overview" aria-current="page">额度总览</a><a href="?view=ledger" data-view="ledger">采集记录</a><a href="?view=brief" data-view="brief">团队早报</a><a href="?view=sources" data-view="sources">资讯指南</a></nav>
+    <div class="mast-tools"><span class="pill">只读分享</span><button type="button" id="theme" class="icon-button" aria-label="切换外观" title="切换外观">◐</button></div>
+  </div></header>
   <main>
-    <header><p class="brand" lang="en">Magpie</p><h1>ChatGPT 订阅额度早报</h1></header>
+    <div class="page-top"><div><h1 id="page-title" tabindex="-1">额度总览</h1><p class="dateline" id="dateline"></p></div>
+      <button class="button" id="retry" type="button" aria-label="重新读取" title="重新读取" hidden><span>重新读取</span></button></div>
+    <p id="message" class="sync" role="status" aria-live="polite" aria-atomic="true"></p>
     <div id="content" hidden>
-      <section class="card reading" aria-labelledby="live-title">
-        <h2 id="live-title">当前剩余额度</h2>
-        <div id="balances"></div>
-        <div id="details"></div>
+      <div id="overview" data-panel="overview">
+        <section aria-labelledby="live-title"><h2 class="sr-only" id="live-title">当前剩余额度</h2><div id="balances" class="metrics"></div></section>
+        <div class="feature-grid">
+          <section class="hero" aria-labelledby="hero-name">
+            <div class="card-head"><span class="eyeline">推荐账户</span><span class="badge-dark">ChatGPT</span></div>
+            <div class="hero-middle"><div><h2 id="hero-name"></h2><p id="hero-note" class="meta"></p></div><strong class="figure" id="hero-value"></strong></div>
+            <div id="hero-bars"></div><div class="hero-foot"><span id="hero-time"></span><button id="hero-go" class="text-link" type="button" hidden>查看窗口 →</button></div>
+          </section>
+          <section class="card brief-card"><div class="eyeline"><span id="brief-label"></span><time id="brief-date"></time></div>
+            <h2>团队早报</h2><p class="excerpt" id="brief-copy"></p><div class="brief-foot"><span id="brief-time"></span><a class="text-link" href="?view=brief" data-view="brief">阅读全文 →</a></div>
+          </section>
+        </div>
+        <section class="section" aria-labelledby="accounts-title"><div class="section-head"><div class="row"><h2 id="accounts-title">账户与窗口</h2><span class="count">2</span></div><span class="tag">ChatGPT 订阅</span></div><div id="details" class="tiles"></div></section>
+      </div>
+      <section class="card" data-panel="ledger" hidden><h2>最近一次采样</h2><p class="note">本机 Magpie 每 5 分钟检查一次。各账户的读数采用上游实际采样时间。</p><div id="record-list"></div></section>
+      <section class="card" data-panel="brief" aria-labelledby="report-title" hidden>
+        <h2 id="report-title">今日早报</h2><p class="note" id="edition"></p><div id="lines"></div>
       </section>
-      <section class="card" aria-labelledby="report-title">
-        <h2 id="report-title">今日早报</h2>
-        <p class="note" id="edition"></p><div id="lines"></div>
+      <section class="section" id="news-section" data-panel="sources" aria-labelledby="news-title">
+        <div class="section-head"><h2 id="news-title">资讯与指南</h2><div class="news-filters" aria-label="资讯分类">
+          <button type="button" data-news="news" aria-pressed="true">AIHOT 热点</button><button type="button" data-news="resets" aria-pressed="false">ChatGPT 重置消息</button><button type="button" data-news="guides" aria-pressed="false">OilOil 指南</button>
+        </div></div><div class="card" id="news-list"></div><p class="meta" id="news-checked"></p>
       </section>
     </div>
-    <p id="message" role="status" aria-live="polite" aria-atomic="true"></p>
-    <noscript><p>请启用 JavaScript，再打开收到的完整 HTTPS 链接，以在本机解锁简报。</p></noscript>
+    <noscript><p>请在手机或电脑浏览器中启用 JavaScript，以读取最新额度。</p></noscript>
     <form id="recovery" class="card" hidden>
       <label for="link">粘贴完整分享链接</label>
       <input id="link" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
-      <button>在本页打开</button>
+      <button class="button">在本页打开</button>
     </form>
-    <div class="actions">
-      <button id="save" type="button" hidden>保存 HTML</button>
-      <button id="retry" type="button" hidden>重新读取</button>
-      <a class="film" href="./film.mp4" referrerpolicy="no-referrer">打开影片</a>
-    </div>
+    <footer class="foot"><span class="tag">余量 / MAGPIE</span><div class="actions">
+      <a id="manage" href="/team/" hidden>成员与客户端</a><button id="copy-link" type="button" hidden>复制分享链接</button><button id="save" type="button" hidden>保存 HTML</button>
+      <a class="film" href="./film.mp4" referrerpolicy="no-referrer">早报宣传片</a>
+    </div></footer>
+    <p id="copy-result" role="status" class="meta"></p><input id="copy-field" aria-label="完整分享链接" readonly hidden autocomplete="off" spellcheck="false">
   </main>
   <script>
   'use strict';
@@ -97,12 +198,17 @@
     hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
   });
   const timestamps = ['observedAt', 'checkedAt', 'resetAt'];
-  const dataIds = ['balances', 'details', 'edition', 'lines'];
+  const dataIds = ['balances','details','edition','lines','record-list','hero-name','hero-value','hero-note',
+    'hero-bars','hero-time','brief-copy','brief-time','brief-date','brief-label'];
+  const team = document.documentElement.dataset.source === 'team';
+  const pageNames = { overview:'额度总览', ledger:'采集记录', brief:'团队早报', sources:'资讯指南' };
+  const statusNames = { ready:'可用', empty:'已用尽', stale:'待更新', unavailable:'待采样' };
   const aad = new TextEncoder().encode('magpie-shared-report-v1');
   let session = null;
   let request = null;
   let payload = null;
   let pollTimer, displayTimer;
+  let recommendation = null, news = null, newsRequest = null, newsGroup = 'news', newsChecked = 0;
 
   function base64bytes(text) {
     if (typeof text !== 'string' || !/^[A-Za-z0-9_-]+$/.test(text)) throw Error();
@@ -147,12 +253,26 @@
     const optionalText = value => value === null || typeof value === 'string';
     return Array.isArray(accounts) && accounts.length === 2 && ['Qi', 'MOU'].every((name, index) => {
       const row = accounts[index];
-      return hasFields(row, fields) && row.account === name &&
+      return (hasFields(row, fields) || (hasFields(row, [...fields, 'windows']) && validWindows(row.windows))) && row.account === name &&
         ['ready', 'empty', 'stale', 'unavailable'].includes(row.status) &&
         [null, 'codex', 'chatgpt'].includes(row.product) && optionalText(row.plan) && optionalText(row.window) &&
         (row.remainingPercent === null || (Number.isFinite(row.remainingPercent) &&
           row.remainingPercent >= 0 && row.remainingPercent <= 100)) &&
         timestamps.every(field => row[field] === null || Number.isFinite(instant(row[field])));
+    });
+  }
+
+  function validWindows(windows) {
+    if (!Array.isArray(windows) || windows.length < 1 || windows.length > 16) return false;
+    const names = new Set();
+    return windows.every(row => {
+      if (!hasFields(row, ['window', 'status', 'remainingPercent', 'resetAt']) ||
+          typeof row.window !== 'string' || !/^(?:\d{1,3} (?:分钟|小时|天|周)|每日|每周|每月)$/u.test(row.window) ||
+          names.has(row.window) || (row.resetAt !== null && !Number.isFinite(instant(row.resetAt)))) return false;
+      names.add(row.window);
+      const value = row.remainingPercent;
+      return row.status === 'unavailable' ? value === null :
+        Number.isFinite(value) && value >= 0 && value <= 100 && (row.status === 'stale' || row.status === (value === 0 ? 'empty' : 'ready'));
     });
   }
 
@@ -170,7 +290,7 @@
 
   function publicText(value) {
     if (!value) return '';
-    if (session && value.includes(session.hash.slice(3))) return '（已省略）';
+    if (session?.hash && value.includes(session.hash.slice(3))) return '（已省略）';
     if (/(?:\/\/|#k=|[a-z\d_-]{43,}|(?:[a-z\d_-]+\.)+[a-z]{2,}\b|(?:\d{1,3}\.){3}\d{1,3}|localhost|::|(?:[\da-f]{1,4}:){7}[\da-f]{1,4}|[a-z]:\\)/i.test(value)) return '（已省略）';
     return value;
   }
@@ -197,7 +317,59 @@
     return node;
   }
 
-  function accountDetails(row, view, asOf, frozen) {
+  function styled(tag, className, text = '') {
+    const node = textNode(tag, text);
+    node.className = className;
+    return node;
+  }
+
+  function timeText(value, compact = false) {
+    const time = instant(value);
+    if (!Number.isFinite(time)) return '待确认';
+    const full = clock.format(time);
+    return compact ? full.slice(5,16).replace('-', '/') : full;
+  }
+
+  function scope(row) {
+    return row.product === 'codex' ? '订阅内 Codex 额度' : row.product === 'chatgpt' ? 'ChatGPT 主额度' : '订阅额度待确认';
+  }
+
+  function windowRows(row) {
+    return row.windows ?? (row.window ? [row] : []);
+  }
+
+  function reading(row, now, expired, checkWindows = true) {
+    if (expired) return { value:'—', condition:'发布数据已过期，等待新读数。' };
+    const view = liveView(row,now);
+    if (!checkWindows || !row.windows || view.value === '—') return view;
+    for (const entry of row.windows) {
+      const individual = liveView({ ...row,...entry },now);
+      if (individual.value === '—') return { value:'—', condition:`${entry.window}窗口 · ${individual.condition}` };
+    }
+    const minimum = Math.min(...row.windows.map(entry => entry.remainingPercent));
+    return minimum === row.remainingPercent && row.windows.some(entry => entry.window === row.window && entry.remainingPercent === minimum)
+      ? view : { value:'—', condition:'窗口与汇总读数待重新核对。' };
+  }
+
+  function meter(value) {
+    const rail = styled('div', 'rail');
+    rail.setAttribute('aria-hidden', 'true');
+    const fill = document.createElement('i');
+    fill.style.width = value === '—' ? '0%' : value;
+    rail.append(fill);
+    return rail;
+  }
+
+  function windowMeters(row, now, expired) {
+    return windowRows(row).map(window => {
+      const value = reading({ ...row, ...window }, now, expired, false).value;
+      const line = styled('div', window.window === row.window ? 'meter-row limiting' : 'meter-row');
+      line.append(textNode('span', publicText(window.window)), meter(value), textNode('span', value));
+      return line;
+    });
+  }
+
+  function accountDetails(row, view, asOf, frozen, expired = false) {
     const section = document.createElement('section');
     section.className = 'account-details';
     const heading = frozen ? `${row.account} · ${view.value}` : `${row.account} 额度明细`;
@@ -216,7 +388,40 @@
       list.append(textNode('dt', label + ' · 北京时间'), textNode('dd', Number.isFinite(time) ? clock.format(time) + suffix : '未知'));
     }
     section.append(list);
+    if (row.windows) for (const entry of row.windows) {
+      const current = reading({ ...row, ...entry }, asOf, expired, false);
+      section.append(styled('p','meta', `${entry.window} · ${current.value} · 重置 ${timeText(entry.resetAt)}`));
+    }
     return section;
+  }
+
+  function accountCard(row, view, now, expired) {
+    const card = styled('article','card account-card');
+    const head = styled('div','card-head');
+    const state = view.value === '—' ? '待更新' : statusNames[row.status];
+    head.append(styled('span','mark',row.account === 'Qi' ? 'Q' : 'M'), styled('span','tag','ChatGPT · ' + state));
+    card.append(head, textNode('h3', row.account + ' 账户'), styled('p','meta',[publicText(row.plan),scope(row)].filter(Boolean).join(' · ')));
+    const line = styled('div','value-line');
+    line.append(styled('strong','card-value',view.value),styled('span','tag',publicText(row.window) || '窗口待确认'));
+    card.append(line,meter(view.value),styled('p','meta',row.resetAt ? `${timeText(row.resetAt,true)} 重置` : view.condition));
+    const disclosure = document.createElement('details');
+    disclosure.id = 'windows-' + row.account;
+    const original = byId(disclosure.id);
+    if (original?.open) disclosure.open = true;
+    disclosure.append(textNode('summary','窗口明细'));
+    const details = accountDetails(row, view, now, false, expired);
+    details.firstElementChild.remove();
+    disclosure.append(details);
+    card.append(disclosure);
+    return card;
+  }
+
+  function replaceContents(id, nodes) {
+    const current = byId(id);
+    if (current.children.length === nodes.length && nodes.every((node,index) => node.isEqualNode(current.children[index]))) return;
+    const focused = current.contains(document.activeElement) ? document.activeElement.closest('details')?.id : null;
+    current.replaceChildren(...nodes);
+    if (focused) byId(focused)?.querySelector('summary')?.focus({preventScroll:true});
   }
 
   function render(now = Date.now()) {
@@ -224,23 +429,50 @@
     const { accounts, report } = payload;
     const published = instant(payload.publishedAt);
     const expired = now >= published + 15 * minute;
-    const balances = [], details = [], deadlines = [published + 15 * minute];
+    const balances = [], details = [], records = [], deadlines = [published + 15 * minute];
+    recommendation = null;
+    let highest = -1;
     for (const row of accounts) {
-      const view = expired ? { value: '—', condition: '发布数据已过期，等待新读数。' } : liveView(row, now);
+      const view = reading(row, now, expired);
+      if (view.value !== '—' && row.remainingPercent > 0 && row.remainingPercent > highest) {
+        recommendation = row;
+        highest = row.remainingPercent;
+      }
       const balance = document.createElement('p');
       balance.className = 'balance';
       const value = textNode('span', view.value);
       value.className = 'value';
       balance.append(textNode('strong', row.account), value);
-      balances.push(balance);
-      details.push(accountDetails(row, view, now, false));
+      const stat = styled('div','stat');
+      stat.append(balance,styled('p','meta',[publicText(row.window),scope(row)].filter(Boolean).join(' · ')));
+      balances.push(stat);
+      details.push(accountCard(row,view,now,expired));
+      const log = styled('article','log-row');
+      const info = document.createElement('div');
+      info.append(textNode('strong',row.account + ' · ' + view.value),styled('p','meta',scope(row) + ' · ' + view.condition));
+      log.append(info,styled('p','meta',`采样 ${timeText(row.observedAt)}　检查 ${timeText(row.checkedAt)}`));
+      records.push(log);
       const observed = instant(row.observedAt);
       deadlines.push(instant(row.resetAt), instant(row.checkedAt) + 15 * minute, observed + 120 * minute,
-        observed + (Math.floor((now - observed) / minute) + 1) * minute);
+        observed + (Math.floor((now - observed) / minute) + 1) * minute, ...windowRows(row).map(entry => instant(entry.resetAt)));
     }
-    byId('balances').replaceChildren(...balances);
-    byId('details').replaceChildren(...details);
+    replaceContents('balances', balances);
+    replaceContents('details', details);
+    replaceContents('record-list', records);
+    const chosen = recommendation;
+    setText('hero-name',chosen ? chosen.account + ' 账户' : '暂无可推荐账户');
+    setText('hero-value',chosen ? highest + '%' : '—');
+    setText('hero-note',chosen ? [scope(chosen),publicText(chosen.window) + '剩余'].join(' · ') :
+      accounts.every(row => reading(row,now,expired).value === '0%') ? '两个账户目前均已用尽。' : '等待读数有效且有余量的账户。');
+    replaceContents('hero-bars',chosen ? windowMeters(chosen,now,expired) : []);
+    setText('hero-time',chosen ? `重置 ${timeText(chosen.resetAt,true)}　·　采样 ${timeText(chosen.observedAt,true)}` : '下次采集后自动更新');
+    byId('hero-go').hidden = !chosen;
     const day = clock.format(now).slice(0, 10);
+    const knownCount = accounts.filter(row => reading(row,now,expired).value !== '—').length;
+    const health = knownCount === 2 ? 'ready' : 'waiting';
+    byId('message').dataset.health = health;
+    setText('message', (knownCount === 2 ? '每 5 分钟检查' : knownCount ? '一个账户的额度待确认' : '等待新的有效采样') +
+      ' · 发布于 ' + clock.format(published).slice(11,16));
     const nine = Date.parse(day + 'T09:00:00+08:00');
     const generated = instant(report?.generatedAt);
     const formal = now >= nine && report?.day === day && generated >= nine &&
@@ -249,8 +481,12 @@
     setText('report-title', formal ? (generated >= nine + minute ? '延时补报' : '09:00 正式早报') : '今日早报');
     setText('edition', formal ? `生成于 ${clock.format(generated)}（北京时间）` :
       now < nine ? '北京时间尚未到 09:00，今日正式早报待发布。' : '尚无今日正式早报。');
-    byId('lines').replaceChildren(...(formal ? report.accounts.map(row =>
-      accountDetails(row, liveView(row, generated), generated, true)) : []));
+    replaceContents('lines',formal ? report.accounts.map(row => accountDetails(row,reading(row,generated,false),generated,true)) : []);
+    setText('brief-label',formal ? '☼ ' + byId('report-title').textContent : '☼ 今日早报');
+    setText('brief-date',day);
+    setText('brief-copy',formal ? report.accounts.map(row => `${row.account} 账户 ${reading(row,generated,false).value}`).join('　·　') : byId('edition').textContent);
+    setText('brief-time',formal ? `生成于 ${timeText(report.generatedAt,true)} · 北京时间` : '每日 09:00 · 北京时间');
+    setText('dateline',new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'long',day:'numeric'}).format(now) + ' · 北京时间');
     deadlines.push(nine, nine + 15 * 60 * minute, generated);
     const next = Math.min(...deadlines.filter(time => time > now));
     if (!document.hidden && Number.isFinite(next)) displayTimer = setTimeout(() => payload && render(), next - now);
@@ -259,9 +495,14 @@
   function clearContent() {
     clearTimeout(displayTimer);
     payload = null;
-    byId('content').hidden = byId('save').hidden = true;
+    recommendation = null;
+    byId('content').hidden = byId('save').hidden = byId('navigation').hidden = byId('hero-go').hidden = true;
+    byId('copy-link').hidden = byId('copy-field').hidden = true;
+    byId('copy-field').value = '';
+    setText('copy-result','');
     for (const id of dataIds) byId(id).replaceChildren();
     setText('report-title', '今日早报');
+    setText('dateline', '');
   }
 
   function stopRequest() {
@@ -273,8 +514,100 @@
   function failure(message, recover = false) {
     clearContent();
     setText('message', message);
+    byId('message').dataset.health = 'waiting';
     byId('recovery').hidden = !recover;
     byId('retry').hidden = !session;
+  }
+
+  function pageView() {
+    const name = new URL(location.href).searchParams.get('view');
+    return Object.hasOwn(pageNames,name) ? name : 'overview';
+  }
+
+  function showPage(focus = false) {
+    const view = pageView();
+    setText('page-title',pageNames[view]);
+    document.title = '余量 / MAGPIE · ' + pageNames[view];
+    for (const link of document.querySelectorAll('a[data-view]')) {
+      const url = new URL(location.href);
+      url.searchParams.set('view',link.dataset.view);
+      link.href = url.href;
+      if (link.closest('nav') && view === link.dataset.view) link.setAttribute('aria-current','page');
+      else link.removeAttribute('aria-current');
+    }
+    for (const panel of document.querySelectorAll('[data-panel]')) {
+      panel.hidden = panel.dataset.panel !== view && !(view === 'overview' && panel.dataset.panel === 'sources');
+    }
+    if (focus) {
+      byId('page-title').focus({preventScroll:true});
+      window.scrollTo(0,0);
+      const panel = document.querySelector(`[data-panel="${view}"]`);
+      if (!matchMedia('(prefers-reduced-motion: reduce)').matches && panel.animate) {
+        for (const animation of panel.getAnimations()) animation.cancel();
+        panel.animate([{opacity:.65,transform:'translateY(2px)'},{opacity:1,transform:'none'}],{duration:140,easing:'ease-out'});
+      }
+    }
+  }
+
+  function articleLink(value, group) {
+    try {
+      const url = new URL(value);
+      if (url.protocol !== 'https:' || url.username || url.password || url.port || url.search || url.hash) return null;
+      if (group === 'guides' && url.hostname === 'book.oiloil.org' &&
+          /^\/articles\/(?:unrolling-the-codex-agent-loop|how-i-use-llms)$/.test(url.pathname)) return url.href;
+      if (group === 'news' && url.hostname === 'aihot.news' && /^\/(?:items|story)\/[\w-]+$/.test(url.pathname)) return url.href;
+      if (group === 'resets' && ((url.hostname === 'aihot.news' && /^\/codex-reset(?:\/history\/\d{4}-\d\d-\d\d)?\/?$/.test(url.pathname)) ||
+          (/^(?:x|twitter)\.com$/.test(url.hostname) && /^\/\w+\/status\/\d+$/.test(url.pathname)))) return url.href;
+    } catch {}
+    return null;
+  }
+
+  function showNews() {
+    const fragment = document.createDocumentFragment();
+    for (const item of (news?.[newsGroup] ?? [])) {
+      const href = articleLink(item?.url,newsGroup);
+      if (!href || typeof item.title !== 'string' || !item.title.trim()) continue;
+      const link = textNode('a',item.title + ' ↗');
+      link.href = href; link.rel = 'noopener noreferrer'; link.target = '_blank';
+      const article = styled('article','news-row');
+      const date = /^\d{4}-\d\d-\d\d$/.test(item.at) ? item.at : Number.isFinite(instant(item.at)) ? timeText(item.at,true) : '';
+      article.append(styled('p','meta',[item.source,date].filter(Boolean).join(' · ')),link);
+      fragment.append(article);
+    }
+    if (!fragment.childElementCount) fragment.append(styled('p','note',news ? '本栏暂时没有已核实的条目。' :
+      newsRequest ? '正在读取资讯…' : '资讯暂时无法读取，可点「重新读取」重试。'));
+    byId('news-list').replaceChildren(fragment);
+    setText('news-checked',Number.isFinite(instant(news?.checkedAt)) ? '来源核对 ' + timeText(news.checkedAt,true) + ' · 北京时间' : '');
+    for (const button of document.querySelectorAll('[data-news]')) button.setAttribute('aria-pressed',String(button.dataset.news === newsGroup));
+  }
+
+  async function refreshNews(force) {
+    if (newsRequest || (!force && news && Date.now() < newsChecked + 30 * minute)) return;
+    const controller = new AbortController();
+    newsRequest = controller;
+    const timer = setTimeout(() => controller.abort(),8000);
+    showNews();
+    try {
+      const result = await fetch('./dashboard-news.json',{signal:controller.signal,cache:'no-cache',credentials:team ? 'same-origin' : 'omit',
+        referrerPolicy:'no-referrer',redirect:'error'});
+      if (!result.ok) throw Error();
+      const body = await result.json();
+      if (!['news','guides','resets'].every(group => Array.isArray(body?.[group]))) throw Error();
+      if (newsRequest === controller) { news = body; newsChecked = Date.now(); }
+    } catch {} finally {
+      clearTimeout(timer);
+      if (newsRequest === controller) { newsRequest = null; if (payload) showNews(); }
+    }
+  }
+
+  function display(record, forceNews) {
+    payload = record;
+    byId('recovery').hidden = true;
+    byId('content').hidden = byId('navigation').hidden = byId('save').hidden = byId('retry').hidden = false;
+    byId('copy-link').hidden = team;
+    showPage();
+    render();
+    refreshNews(forceNews);
   }
 
   function sourcesFor(origin, now) {
@@ -305,18 +638,35 @@
     }
   }
 
-  async function refresh() {
+  async function refresh(forceNews = false) {
     if (session?.hash !== location.hash) return start();
     if (!session || document.hidden) return;
     stopRequest();
     if (!navigator.onLine) return failure('当前离线。联网后会重新读取，也可手动重试。');
     if (payload) render();
-    else setText('message', '正在读取加密简报…');
+    else setText('message',team ? '正在读取本机 Magpie…' : '正在读取公司额度…');
     const controller = new AbortController();
     request = controller;
     const active = () => request === controller && session?.hash === location.hash;
     let repeat = true, refreshDelay = minute;
     try {
+      if (team) {
+        const timeout = setTimeout(() => controller.abort(),9000);
+        let response;
+        try {
+          response = await fetch('/api/dashboard',{cache:'no-store',credentials:'same-origin',redirect:'error',signal:controller.signal});
+          if (!active()) return;
+          if (response.status === 403) return failure('当前未获访问权限。请打开「成员与客户端」查看访问状态。');
+          if (!response.ok) return failure('本机额度暂时无法读取，请重试。');
+          const record = validate(await response.json());
+          if (!active()) return;
+          const published = instant(record.publishedAt);
+          if (published < session.latest || published > Date.now() + 5 * minute) return failure('发布版本或时间异常，等待重新读取。');
+          session.latest = published;
+          display(record,forceNews);
+        } finally { clearTimeout(timeout); }
+        return;
+      }
       const sources = sourcesFor(location.origin, Date.now());
       const key = await crypto.subtle.importKey('raw', fragmentKey(session.hash), 'AES-GCM', false, ['decrypt']);
       let missing = true, timeError = false;
@@ -354,11 +704,7 @@
           const nextUpload = Math.floor(Date.now() / (5 * minute)) * 5 * minute + 25_000;
           refreshDelay = nextUpload > Date.now() ? nextUpload - Date.now() : nextUpload + 5 * minute - Date.now();
         }
-        payload = record;
-        render();
-        byId('recovery').hidden = true;
-        byId('content').hidden = byId('save').hidden = byId('retry').hidden = false;
-        setText('message', '发布于 ' + clock.format(published) + '（北京时间）');
+        display(record,forceNews);
         return;
       }
       if (!active()) return;
@@ -367,6 +713,7 @@
       else failure('读取失败。请检查网络后重新读取。');
     } catch {
       if (!active()) return;
+      if (team) return failure('本机额度暂时无法读取，请重试。');
       repeat = false;
       failure('无法解锁。链接可能已失效，或分享文件损坏。请重新打开最新完整链接。', true);
     } finally {
@@ -378,12 +725,21 @@
   }
 
   function start() {
+    const legacy = team && /^#(overview|ledger|brief|sources)$/.exec(location.hash);
+    if (legacy) history.replaceState(null,'',location.pathname + '?view=' + legacy[1]);
     const latest = session?.hash === location.hash ? session.latest : -Infinity;
     stopRequest();
     clearContent();
     session = null;
     byId('link').value = '';
     byId('retry').hidden = byId('recovery').hidden = true;
+    showPage();
+    if (team) {
+      byId('manage').hidden = false;
+      document.querySelector('.film').href = 'https://r4ain1.github.io/magpie-quota-demo/film.mp4';
+      session = { hash:location.hash, latest };
+      return refresh();
+    }
     try { fragmentKey(location.hash); } catch {
       return failure('请打开分享者发来的完整 HTTPS 链接，保留末尾的 #k= 部分。也可以粘贴到下方，在本机解锁。', true);
     }
@@ -401,9 +757,9 @@
       const pagesReader = link.origin === 'https://r4ain1.github.io' && /^\/magpie-quota-demo\/(?:index\.html|report\.html)?$/.test(link.pathname);
       const mirrorReader = link.origin === 'https://magpie-morning-r4ain1.vercel.app' && ['/','/report.html','/index.html'].includes(link.pathname);
       if (link.protocol !== 'https:' || !(ownPage || pagesReader || mirrorReader) ||
-          link.search || link.username || link.password) throw Error();
+          (link.search && !/^\?view=(?:overview|ledger|brief|sources)$/.test(link.search)) || link.username || link.password) throw Error();
       fragmentKey(link.hash);
-      history.replaceState(null, '', link.hash);
+      history.replaceState(null, '', location.pathname + link.search + link.hash);
       start();
       byId('retry').hidden = false;
       byId('retry').focus();
@@ -413,7 +769,45 @@
       field.focus();
     }
   });
-  byId('retry').addEventListener('click', refresh);
+  byId('retry').addEventListener('click', () => refresh(true));
+  byId('copy-link').addEventListener('click',async () => {
+    if (team || !payload || session?.hash !== location.hash) return;
+    const url = new URL(location.href);
+    url.search = '';
+    try {
+      await navigator.clipboard.writeText(url.href);
+      if (payload && session?.hash === url.hash) setText('copy-result','总览链接已复制，可以发给同事。');
+    } catch {
+      if (!payload || session?.hash !== url.hash) return;
+      const field = byId('copy-field');
+      field.value = url.href; field.hidden = false; field.focus(); field.select();
+      setText('copy-result','已选中完整链接，点「复制」即可转发。');
+    }
+  });
+  byId('theme').addEventListener('click', () => {
+    const root = document.documentElement;
+    const dark = (root.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark';
+    root.dataset.theme = dark ? 'light' : 'dark';
+    byId('theme').setAttribute('aria-label',dark ? '切换到深色外观' : '切换到浅色外观');
+  });
+  document.addEventListener('click',event => {
+    const link = event.target.closest('a[data-view]');
+    if (link && !event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey && event.button === 0) {
+      event.preventDefault();
+      if (pageView() !== link.dataset.view) history.pushState(null,'',link.href);
+      showPage(true);
+    }
+    const button = event.target.closest('[data-news]');
+    if (button) { newsGroup = button.dataset.news; showNews(); }
+  });
+  window.addEventListener('popstate',() => { if (session?.hash === location.hash) showPage(true); });
+  byId('hero-go').addEventListener('click',() => {
+    if (!recommendation) return;
+    const detail = byId('windows-' + recommendation.account);
+    detail.open = true;
+    detail.querySelector('summary').focus({preventScroll:true});
+    detail.closest('article').scrollIntoView({block:'nearest'});
+  });
   byId('save').addEventListener('click', () => {
     if (session?.hash !== location.hash) return start();
     if (!payload) return;
@@ -433,8 +827,13 @@
     const saved = snapshot.createElement('p');
     saved.textContent = '发布于 ' + clock.format(instant(payload.publishedAt)) + '，保存于 ' +
       clock.format(now) + '（北京时间）。以下为保存时的记录。';
-    main.append(heading, saved, byId('content').cloneNode(true));
-    main.querySelector('h2').textContent = '保存时剩余额度';
+    main.append(heading,saved,textNode('h2','保存时剩余额度'),byId('balances').cloneNode(true));
+    for (const row of payload.accounts) {
+      const expired = now >= instant(payload.publishedAt) + 15 * minute;
+      const section = accountDetails(row,reading(row,now,expired),now,false,expired);
+      main.append(section);
+    }
+    for (const id of ['report-title','edition','lines']) main.append(byId(id).cloneNode(true));
     snapshot.body.append(main);
     const url = URL.createObjectURL(new Blob(['<!doctype html>\n', snapshot.documentElement.outerHTML], { type: 'text/html;charset=utf-8' }));
     const link = document.createElement('a');
