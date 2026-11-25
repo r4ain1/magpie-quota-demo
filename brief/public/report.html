@@ -48,6 +48,13 @@
     #message { margin-bottom: .75rem }
     label { display: block; font-weight: 650 }
     input { display: block; width: 100%; min-height: 44px; padding: .55rem; color: var(--ink); background: var(--panel); border: 1px solid var(--muted); border-radius: .4rem; margin: .5rem 0 .75rem }
+    @media (max-width: 30em) {
+      main { padding-top: min(1.25rem, 5vw); padding-inline: max(min(1rem, 4vw), env(safe-area-inset-left)) max(min(1rem, 4vw), env(safe-area-inset-right)) }
+      header { margin-bottom: min(1.25rem, 5vw); padding-bottom: min(.75rem, 3vw) }
+      h1 { font-size: clamp(1.2rem, calc(.9rem + 4.2vw), 2.25rem) }
+      .card { padding: min(1rem, 4vw) }
+      .value { font-size: clamp(1.8rem, calc(1.35rem + 7.8vw), 3.4rem) }
+    }
     @media (max-width: 25em) { dl { grid-template-columns: 1fr; gap: 0 } dd + dt { margin-top: .45rem } }
   </style>
 </head>
