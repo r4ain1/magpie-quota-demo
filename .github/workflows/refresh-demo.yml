@@ -1,9 +1,14 @@
-name: Publish migration notice
+name: Publish mobile morning brief
 
 on:
   push:
     branches: [main]
+    paths:
+      - 'brief/**'
+      - '.github/workflows/refresh-demo.yml'
   workflow_dispatch:
+  schedule:
+    - cron: '23 1 * * *'
 
 permissions: {}
 
@@ -23,13 +28,19 @@ jobs:
         with:
           ref: main
           persist-credentials: false
-      - name: Stage migration notice
+      - name: Stage the reader, film and encrypted fallback
         id: site
         shell: bash
         run: |
-          site=$(mktemp -d "$RUNNER_TEMP/demo-pages.XXXXXXXX")
-          [[ -f migration/index.html && ! -L migration && ! -L migration/index.html ]]
-          install -m 0644 -- migration/index.html "$site/index.html"
+          site=$(mktemp -d "$RUNNER_TEMP/morning-pages.XXXXXXXX")
+          for file in index.html film.mp4; do
+            [[ -f "brief/public/$file" && ! -L "brief/public/$file" ]]
+            install -m 0644 -- "brief/public/$file" "$site/$file"
+          done
+          cp -- "$site/index.html" "$site/report.html"
+          git fetch --no-tags --depth=1 origin refs/tags/brief-current
+          git show FETCH_HEAD:current.json > "$site/current.json"
+          jq -e 'type=="object" and (keys==["data","iv","v"]) and .v==1 and (.iv|test("^[A-Za-z0-9_-]{16}$")) and (.data|type=="string" and length>=22 and length<=300000 and test("^[A-Za-z0-9_-]+$"))' "$site/current.json" >/dev/null
           echo "path=$site" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-pages-artifact@v4
         with:

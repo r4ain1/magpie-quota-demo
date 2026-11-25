@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https://raw.githubusercontent.com/r4ain1/magpie-quota-demo/brief-current/current.json https://magpie-morning-r4ain1.vercel.app/current.json; img-src data:; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:,">
+  <title>ChatGPT 订阅额度早报 · Magpie</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --paper: #f8f3e7; --panel: #fffaf0; --ink: #322a24; --muted: #65584d;
+      --line: #d2bda7; --accent: #963929; --wash: #f2e4d6;
+      font-family: system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink); background: var(--paper); line-height: 1.6;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #211c19; --panel: #2c2521; --ink: #fbf3e6; --muted: #d2bfae;
+        --line: #615044; --accent: #ffad95; --wash: #3d2b24;
+      }
+    }
+    * { box-sizing: border-box }
+    [hidden] { display: none !important }
+    body { margin: 0; overflow-wrap: anywhere }
+    main { width: min(100%, 41rem); margin: auto; padding: 1.25rem max(1rem, env(safe-area-inset-right)) max(2rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)) }
+    header { border-bottom: 2px solid var(--ink); margin-bottom: 1.25rem; padding-bottom: .75rem }
+    .brand { font-weight: 750; letter-spacing: .08em; color: var(--accent); margin: 0 }
+    h1, h2, p, dl, dd { margin: 0 }
+    h1 { font-family: ui-serif, "Songti SC", serif; font-size: 2.25rem; line-height: 1.25; margin-top: .35rem }
+    h2 { font-size: 1.18rem }
+    section { margin-bottom: 1rem }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: .75rem; padding: 1rem }
+    .reading { background: var(--wash); border-top: .25rem solid var(--accent) }
+    .value { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 720; font-size: 3.4rem; line-height: 1.2; margin: .28rem 0 }
+    .note, dt, #message { color: var(--muted) }
+    dl { display: grid; grid-template-columns: auto minmax(0, 1fr); margin-top: 1rem; gap: .35rem 1rem; border-top: 1px solid var(--line); padding-top: .75rem }
+    dd { font-variant-numeric: tabular-nums }
+    #lines p { margin-top: .55rem; white-space: pre-wrap }
+    .actions { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem }
+    button, input, a { font: inherit }
+    button, .film { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; min-width: 48px; max-width: 100%; border-radius: .45rem; padding: .45rem .9rem }
+    button { cursor: pointer; color: var(--accent); border: 1px solid var(--accent); background: var(--panel); font-weight: 650 }
+    .film { color: var(--accent); text-underline-offset: .2em }
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px }
+    #message { margin-bottom: .75rem }
+    label { display: block; font-weight: 650 }
+    input { display: block; width: 100%; min-height: 44px; padding: .55rem; color: var(--ink); background: var(--panel); border: 1px solid var(--muted); border-radius: .4rem; margin: .5rem 0 .75rem }
+    @media (max-width: 25em) { dl { grid-template-columns: 1fr; gap: 0 } dd + dt { margin-top: .45rem } }
+  </style>
+</head>
+<body>
+  <main>
+    <header><p class="brand" lang="en">Magpie</p><h1>ChatGPT 订阅额度早报</h1></header>
+    <div id="content" hidden>
+      <section class="card reading" aria-labelledby="live-title">
+        <h2 id="live-title">当前剩余额度</h2>
+        <p id="value" class="value">—</p>
+        <p id="condition"></p>
+        <p class="note" id="observed"></p>
+        <dl>
+          <dt>适用范围</dt><dd id="scope"></dd>
+          <dt>额度窗口</dt><dd id="window-name"></dd>
+          <dt>重置 · 北京时间</dt><dd id="reset"></dd>
+          <dt>检查 · 北京时间</dt><dd id="checked"></dd>
+        </dl>
+      </section>
+      <section class="card" aria-labelledby="report-title">
+        <h2 id="report-title">09:00 正式早报</h2>
+        <p class="note" id="edition"></p><div id="lines"></div>
+      </section>
+    </div>
+    <p id="message" role="status" aria-live="polite" aria-atomic="true"></p>
+    <noscript><p>请启用 JavaScript，再打开收到的完整 HTTPS 链接，以在本机解锁简报。</p></noscript>
+    <form id="recovery" class="card" hidden>
+      <label for="link">粘贴完整分享链接</label>
+      <input id="link" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go">
+      <button>在本页打开</button>
+    </form>
+    <div class="actions">
+      <button id="save" type="button" hidden>保存 HTML</button>
+      <button id="retry" type="button" hidden>重新读取</button>
+      <a class="film" href="./film.mp4" referrerpolicy="no-referrer">打开影片</a>
+    </div>
+  </main>
+  <script>
+  'use strict';
+  const byId = id => document.getElementById(id);
+  const minute = 60000;
+  const clock = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+  });
+  const timestamps = ['observedAt', 'checkedAt', 'resetAt'];
+  const dataIds = ['value', 'condition', 'scope', 'window-name', 'reset', 'observed', 'checked', 'edition', 'lines'];
+  const aad = new TextEncoder().encode('magpie-shared-report-v1');
+  let session = null;
+  let request = null;
+  let payload = null;
+  let pollTimer, displayTimer;
+
+  function base64bytes(text) {
+    if (typeof text !== 'string' || !/^[A-Za-z0-9_-]+$/.test(text)) throw Error();
+    const base = text.replaceAll('-', '+').replaceAll('_', '/');
+    const raw = atob(base);
+    if (btoa(raw).replace(/=+$/, '') !== base) throw Error();
+    return Uint8Array.from(raw, char => char.charCodeAt(0));
+  }
+
+  function fragmentKey(hash) {
+    const match = /^#k=([A-Za-z0-9_-]{43})$/.exec(hash);
+    if (!match) throw Error();
+    const bytes = base64bytes(match[1]);
+    if (bytes.length !== 32) throw Error();
+    return bytes;
+  }
+
+  async function unlock(envelope, key) {
+    if (envelope?.v !== 1) throw Error();
+    const iv = base64bytes(envelope.iv);
+    const encrypted = base64bytes(envelope.data);
+    if (iv.length !== 12 || encrypted.length < 16) throw Error();
+    const clear = await crypto.subtle.decrypt({ name: 'AES-GCM', iv, additionalData: aad, tagLength: 128 }, key, encrypted);
+    return validate(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(clear)));
+  }
+
+  function instant(value) {
+    if (typeof value !== 'string' || !/^\d{4}-\d\d-\d\dT(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)$/.test(value)) return NaN;
+    const day = value.slice(0, 10);
+    const midnight = Date.parse(day + 'T00:00:00Z');
+    if (!Number.isFinite(midnight) || new Date(midnight).toISOString().slice(0, 10) !== day) return NaN;
+    return Date.parse(value);
+  }
+
+  function validate(record) {
+    const live = record?.live;
+    const report = record?.report;
+    const optionalText = value => value === null || typeof value === 'string';
+    if (record?.v !== 1 || !Number.isFinite(instant(record.publishedAt)) ||
+        !/(?:Z|[+]00:00)$/.test(record.publishedAt) || !live ||
+        !['ready', 'empty', 'stale', 'unavailable'].includes(live.status) ||
+        ![null, 'codex', 'chatgpt'].includes(live.product) ||
+        !optionalText(live.plan) || !optionalText(live.window) ||
+        !(live.remainingPercent === null || (Number.isFinite(live.remainingPercent) &&
+          live.remainingPercent >= 0 && live.remainingPercent <= 100)) ||
+        !timestamps.every(name => live[name] === null || Number.isFinite(instant(live[name])))) throw Error();
+    if (report !== null && (!report || !/^\d{4}-\d\d-\d\d$/.test(report.day) ||
+        !Number.isFinite(instant(report.generatedAt)) || !Array.isArray(report.lines) ||
+        !report.lines.every(line => typeof line === 'string'))) throw Error();
+    return record;
+  }
+
+  function publicText(value) {
+    if (!value) return '';
+    if (session && value.includes(session.hash.slice(3))) return '（已省略）';
+    if (/(?:\/\/|#k=|[a-z\d_-]{43,}|(?:[a-z\d_-]+\.)+[a-z]{2,}\b|(?:\d{1,3}\.){3}\d{1,3}|localhost|::|(?:[\da-f]{1,4}:){7}[\da-f]{1,4}|[a-z]:\\)/i.test(value)) return '（已省略）';
+    return value;
+  }
+
+  function liveView(live, now) {
+    const checked = instant(live.checkedAt), observed = instant(live.observedAt), reset = instant(live.resetAt);
+    const unknown = { value: '—', condition: '暂无有效读数。' };
+    if (live.status === 'unavailable') return unknown;
+    if (reset <= now) return { value: '—', condition: '窗口已到重置时间，等待新的实测读数。' };
+    if (live.status === 'stale' || now >= checked + 15 * minute || now >= observed + 120 * minute)
+      return { value: '—', condition: '读数已过期，等待新的采样。' };
+    if (!Number.isFinite(checked) || !Number.isFinite(observed) || checked > now || observed > now ||
+        live.remainingPercent === null || (live.status === 'empty' && live.remainingPercent !== 0)) return unknown;
+    return { value: live.remainingPercent + '%', condition: live.remainingPercent === 0 ? '当前窗口额度已用尽。' : '当前窗口的实测余量' };
+  }
+
+  function setText(id, text) {
+    if (byId(id).textContent !== text) byId(id).textContent = text;
+  }
+
+  function render(now = Date.now()) {
+    clearTimeout(displayTimer);
+    const { live, report } = payload;
+    const published = instant(payload.publishedAt), observed = instant(live.observedAt);
+    const expired = now >= published + 15 * minute || published < session.latest;
+    const view = expired ? { value: '—', condition: '发布数据已过期，等待新读数。' } : liveView(live, now);
+    setText('value', view.value);
+    setText('condition', (payload.snapshot ? '日报后备快照 · ' : '') + view.condition);
+    const elapsed = Math.floor((now - observed) / minute);
+    const age = elapsed >= 1440 ? Math.floor(elapsed / 1440) + ' 天前' :
+      elapsed >= 60 ? Math.floor(elapsed / 60) + ' 小时前' : elapsed > 0 ? elapsed + ' 分钟前' : '刚刚';
+    setText('observed', Number.isFinite(observed) ? `上次采样：${clock.format(observed)}（北京时间${elapsed >= 0 ? '，' + age : ''}）` : '上次采样时间未知');
+    const product = { codex: 'ChatGPT 订阅内的 Codex 额度', chatgpt: 'ChatGPT 主额度' }[live.product];
+    setText('scope', [product, publicText(live.plan)].filter(Boolean).join(' · ') || '未知');
+    setText('window-name', publicText(live.window) || '未知');
+    for (const [name, id] of [['checkedAt', 'checked'], ['resetAt', 'reset']]) {
+      const time = instant(live[name]);
+      setText(id, Number.isFinite(time) ? clock.format(time) : '未知');
+    }
+    const day = clock.format(now).slice(0, 10);
+    const nine = Date.parse(day + 'T09:00:00+08:00');
+    const generated = instant(report?.generatedAt);
+    const formal = now >= nine && report?.day === day && generated >= nine &&
+      generated <= Math.min(now, instant(payload.publishedAt)) &&
+      clock.format(generated).startsWith(day) && report.lines.some(line => line.trim());
+    setText('edition', formal ? `生成于 ${clock.format(generated)}（北京时间）` :
+      now < nine ? '北京时间尚未到 09:00，今日正式早报待发布。' : '尚无今日正式早报。');
+    byId('lines').replaceChildren(...(formal ? report.lines.map(line => {
+      const paragraph = document.createElement('p');
+      paragraph.textContent = publicText(line);
+      return paragraph;
+    }) : []));
+    const deadlines = [nine, nine + 15 * 60 * minute, generated, instant(live.resetAt),
+      observed + (elapsed + 1) * minute, published + 15 * minute, observed + 120 * minute, instant(live.checkedAt) + 15 * minute];
+    const next = Math.min(...deadlines.filter(time => time > now));
+    if (!document.hidden && Number.isFinite(next)) displayTimer = setTimeout(() => payload && render(), next - now);
+  }
+
+  function clearContent() {
+    clearTimeout(displayTimer);
+    payload = null;
+    byId('content').hidden = byId('save').hidden = true;
+    for (const id of dataIds) byId(id).replaceChildren();
+  }
+
+  function stopRequest() {
+    clearTimeout(pollTimer);
+    request?.abort();
+    request = null;
+  }
+
+  function failure(message, recover = false) {
+    clearContent();
+    setText('message', message);
+    byId('recovery').hidden = !recover;
+    byId('retry').hidden = !session;
+  }
+
+  function sourcesFor(origin, path, now) {
+    const raw = { url: 'https://raw.githubusercontent.com/r4ain1/magpie-quota-demo/brief-current/current.json?t=' + Math.floor(now / minute) };
+    const primary = 'https://magpie-morning-r4ain1.vercel.app';
+    if (origin === 'https://r4ain1.github.io' &&
+        ['/magpie-quota-demo/', '/magpie-quota-demo/report.html', '/magpie-quota-demo/index.html'].includes(path))
+      return [raw, { url: primary + '/current.json' }, { url: './current.json', snapshot: true }];
+    if (origin === primary) return [{ url: '/current.json' }, raw];
+    return [{ url: './current.json' }];
+  }
+
+  async function readSource(url, signal) {
+    const attempt = new AbortController();
+    const cancel = () => attempt.abort();
+    signal.addEventListener('abort', cancel, { once: true });
+    const timeout = setTimeout(cancel, 4500);
+    try {
+      const response = await fetch(url, { cache: 'no-store', credentials: 'omit', mode: 'cors',
+        redirect: 'error', referrerPolicy: 'no-referrer', signal: attempt.signal });
+      if (!response.ok) return { status: response.status };
+      const envelope = await response.json();
+      if (envelope?.v !== 1 || typeof envelope.iv !== 'string' || typeof envelope.data !== 'string') throw Error();
+      return { envelope };
+    } finally {
+      clearTimeout(timeout);
+      signal.removeEventListener('abort', cancel);
+    }
+  }
+
+  async function refresh() {
+    if (session?.hash !== location.hash) return start();
+    if (!session || document.hidden) return;
+    stopRequest();
+    if (!navigator.onLine) return failure('当前离线。联网后会重新读取，也可手动重试。');
+    if (payload) render();
+    else setText('message', '正在读取加密简报…');
+    const controller = new AbortController();
+    request = controller;
+    const active = () => request === controller && session?.hash === location.hash;
+    let repeat = true;
+    try {
+      const sources = sourcesFor(location.origin, location.pathname, Date.now());
+      const key = await crypto.subtle.importKey('raw', fragmentKey(session.hash), 'AES-GCM', false, ['decrypt']);
+      let missing = true, timeError = false;
+      for (const source of sources) {
+        if (!active()) return;
+        let result;
+        try {
+          result = await readSource(source.url, controller.signal);
+        } catch {
+          missing = false;
+          continue;
+        }
+        if (!active()) return;
+        if (result.status === 410) {
+          repeat = false;
+          return failure('分享已失效或已撤下。请向分享者索取最新完整链接。', true);
+        }
+        if (!result.envelope) {
+          if (![401, 403, 404].includes(result.status)) missing = false;
+          continue;
+        }
+        const record = await unlock(result.envelope, key);
+        if (!active()) return;
+        const published = instant(record.publishedAt);
+        if ((!source.snapshot && published < session.latest) || published > Date.now() + 5 * minute) {
+          timeError = true;
+          continue;
+        }
+        session.latest = Math.max(session.latest, published);
+        payload = { ...record, snapshot: Boolean(source.snapshot) };
+        render();
+        byId('recovery').hidden = true;
+        byId('content').hidden = byId('save').hidden = byId('retry').hidden = false;
+        setText('message', '发布于 ' + clock.format(published) + '（北京时间）');
+        return;
+      }
+      if (!active()) return;
+      if (timeError) failure('发布版本或时间异常，等待重新读取。');
+      else if (missing) failure('未找到分享文件，链接可能已失效。请确认最新完整链接。', true);
+      else failure('读取失败。请检查网络后重新读取。');
+    } catch {
+      if (!active()) return;
+      repeat = false;
+      failure('无法解锁。链接可能已失效，或分享文件损坏。请重新打开最新完整链接。', true);
+    } finally {
+      if (active()) {
+        request = null;
+        if (repeat && !document.hidden && navigator.onLine) pollTimer = setTimeout(refresh, minute);
+      }
+    }
+  }
+
+  function start() {
+    stopRequest();
+    clearContent();
+    session = null;
+    byId('link').value = '';
+    byId('retry').hidden = byId('recovery').hidden = true;
+    try { fragmentKey(location.hash); } catch {
+      return failure('请打开分享者发来的完整 HTTPS 链接，保留末尾的 #k= 部分。也可以粘贴到下方，在本机解锁。', true);
+    }
+    if (!globalThis.crypto?.subtle) return failure('此浏览器无法安全解锁。请在系统浏览器打开完整 HTTPS 链接。', true);
+    session = { hash: location.hash, latest: -Infinity };
+    refresh();
+  }
+
+  byId('recovery').addEventListener('submit', event => {
+    event.preventDefault();
+    const field = byId('link');
+    try {
+      const link = new URL(field.value.trim());
+      if (link.protocol !== 'https:' || link.origin !== location.origin || link.pathname !== location.pathname ||
+          link.search || link.username || link.password) throw Error();
+      fragmentKey(link.hash);
+      history.replaceState(null, '', link.hash);
+      start();
+      byId('retry').hidden = false;
+      byId('retry').focus();
+    } catch {
+      field.value = '';
+      setText('message', '链接无效。请粘贴指向本阅读页、含完整 #k= 的 HTTPS 链接。');
+      field.focus();
+    }
+  });
+  byId('retry').addEventListener('click', refresh);
+  byId('save').addEventListener('click', () => {
+    if (session?.hash !== location.hash) return start();
+    if (!payload) return;
+    const now = Date.now();
+    render(now);
+    const snapshot = document.implementation.createHTMLDocument('额度简报 · 离线快照');
+    snapshot.documentElement.lang = 'zh-CN';
+    for (const selector of ['meta[charset]', 'meta[name=viewport]', 'style'])
+      snapshot.head.prepend(document.querySelector(selector).cloneNode(true));
+    const policy = snapshot.createElement('meta');
+    policy.httpEquiv = 'Content-Security-Policy';
+    policy.content = "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'";
+    snapshot.head.prepend(policy);
+    const main = snapshot.createElement('main');
+    const heading = snapshot.createElement('h1');
+    heading.textContent = '额度简报 · 离线快照';
+    const saved = snapshot.createElement('p');
+    saved.textContent = '发布于 ' + clock.format(instant(payload.publishedAt)) + '，保存于 ' +
+      clock.format(now) + '（北京时间）。以下为保存时的记录。';
+    main.append(heading, saved, byId('content').cloneNode(true));
+    main.querySelector('h2').textContent = '保存时剩余额度';
+    snapshot.body.append(main);
+    const url = URL.createObjectURL(new Blob(['<!doctype html>\n', snapshot.documentElement.outerHTML], { type: 'text/html;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = '额度简报-' + clock.format(now).slice(0, 10) + '.html';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), minute);
+  });
+  function resume() {
+    if (session && session.hash === location.hash) refresh();
+    else start();
+  }
+  window.addEventListener('hashchange', start);
+  window.addEventListener('offline', () => {
+    stopRequest();
+    if (session) failure('当前离线。联网后会重新读取，也可手动重试。');
+  });
+  window.addEventListener('online', resume);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { stopRequest(); clearContent(); }
+    else resume();
+  });
+  window.addEventListener('pagehide', () => {
+    stopRequest();
+    clearContent();
+    byId('link').value = '';
+  });
+  window.addEventListener('pageshow', event => { if (event.persisted) resume(); });
+  start();
+  </script>
+</body>
+</html>
